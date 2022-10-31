@@ -445,6 +445,17 @@ class MainTab : JPanel(GridBagLayout()) {
                 if (highPriorityCheckbox.isSelected)
                     add(TorrentFilterCriteria.Priority.HIGH)
             },
+            seedLowSpinner.value as Double,
+            seedHighSpinner.value as Double,
+            try {
+                SimpleDateFormat("dd.MM.yyyy").parse(registerDateInput.value as String)
+            } catch (e: Exception){
+                // TODO: 01.11.2022 prompt incorrect date
+                Calendar.getInstance().apply {
+                    add(Calendar.MONTH, -1)
+                }.time
+            },
+            searchByPhraseField.text
         )
         val torrentsFromDb = TorrentRepository.getFilteredTorrents(torrentFilter)
         val model = torrentsTable.model as DefaultTableModel

@@ -1,11 +1,20 @@
 package utils
 
+import java.util.*
+
 class TorrentFilterCriteria(
     val sortAscending: Boolean,
     val sortOrder: SortOrder,
 
     val statuses: List<ForumStatus>,
-    val priorities: List<Priority>
+    val priorities: List<Priority>,
+
+    val minAverageSeeds: Double,
+    val maxAverageSeeds: Double,
+    // FIXME: 31.10.2022 можно отхватить люлей на часовых поясах
+    val registerDate: Date,
+
+    val titleSearchText: String,
 
     // TODO: 31.10.2022 add other criteria
 ) {

@@ -33,28 +33,36 @@ object TorrentRepository {
                 cachedHasNext = false
                 return TorrentTableItem(
                     resultSet.getString(1),
-                    Date(resultSet.getInt(2)*1000L),
+                    Date(resultSet.getInt(2) * 1000L),
                     resultSet.getInt(3)
                 )
             }
         }
     }
 
-    fun getFilteredTorrents(torrentFilter: TorrentFilterCriteria): Iterator<TorrentTableItem> {
-        val statement = connection.createStatement()
-        val query ="SELECT na,rg,se FROM Topics " +
-                "WHERE st IN (${torrentFilter.statuses.joinToString(",")}) " +
-                "AND pt IN (${torrentFilter.priorities.joinToString(",")}) " +
+    fun getFilteredTorrents(filter: TorrentFilterCriteria): Iterator<TorrentTableItem> {
+        val query = "SELECT na,rg,se FROM Topics " +
+                "WHERE st IN (${filter.statuses.joinToString(",")}) " +
+                "AND pt IN (${filter.priorities.joinToString(",")}) " +
+                "AND se >= ${filter.minAverageSeeds} AND  se <= ${filter.maxAverageSeeds} " +
+                "AND rg <= ${(filter.registerDate.time / 1000).toInt()} " +
+                "AND na LIKE ? ESCAPE '\\'" +
                 "ORDER BY ${
-                    when(torrentFilter.sortOrder){
+                    when (filter.sortOrder) {
                         TorrentFilterCriteria.SortOrder.NAME -> "na"
                         TorrentFilterCriteria.SortOrder.SIZE -> "si"
                         TorrentFilterCriteria.SortOrder.SEEDS -> "se"
                         TorrentFilterCriteria.SortOrder.DATE -> "rg"
                     }
-                }${if (torrentFilter.sortAscending) "" else " DESC"}"
-        println(query)
-        val resultSet = statement.executeQuery(query)
+                }${if (filter.sortAscending) "" else " DESC"}"
+        val statement = connection.prepareStatement(query)
+        println(statement)
+        // TODO: 01.11.2022 уточнить правильно ли я всё заэкранировал
+        statement.setString(1, "%${filter.titleSearchText
+            .replace("\\","\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")}%")
+        val resultSet = statement.executeQuery()
 
         return object : Iterator<TorrentTableItem> {
             var cachedHasNext = false
@@ -70,7 +78,7 @@ object TorrentRepository {
                 cachedHasNext = false
                 return TorrentTableItem(
                     resultSet.getString(1),
-                    Date(resultSet.getInt(2)*1000L),
+                    Date(resultSet.getInt(2) * 1000L),
                     resultSet.getInt(3)
                 )
             }
