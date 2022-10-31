@@ -2,6 +2,7 @@ package gui.tabs
 
 import db.TorrentRepository
 import utils.DateTableCellRenderer
+import utils.TorrentFilterCriteria
 import java.awt.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -11,6 +12,7 @@ import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.DefaultTableModel
+import kotlin.collections.ArrayList
 
 
 class MainTab : JPanel(GridBagLayout()) {
@@ -38,7 +40,7 @@ class MainTab : JPanel(GridBagLayout()) {
         add(sortDescendingRadio)
     }
 
-    val sortTitleRadio = buildFilterRadiobutton("по объёму")
+    val sortTitleRadio = buildFilterRadiobutton("по названию")
     val sortSizeRadio = buildFilterRadiobutton("по объёму")
     val sortSeedsRadio = buildFilterRadiobutton("по количеству сидов", true)
     val sortDateRadio = buildFilterRadiobutton("по дате регистрации")
@@ -70,7 +72,7 @@ class MainTab : JPanel(GridBagLayout()) {
     val averageSeedsSpinner = JSpinner().apply {
         value = 14
         addChangeListener {
-            updateFilter()
+            enqueueFilterUpdate()
         }
     }
     val registerDateInput = JFormattedTextField(SimpleDateFormat("dd.MM.yyyy")).apply {
@@ -90,7 +92,7 @@ class MainTab : JPanel(GridBagLayout()) {
 
             fun checkDate() {
                 if (this@apply.text.length == 10)
-                    updateFilter()
+                    enqueueFilterUpdate()
             }
         })
     }
@@ -99,16 +101,16 @@ class MainTab : JPanel(GridBagLayout()) {
         columns = 15
         document.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(p0: DocumentEvent?) {
-                updateFilter()
+                enqueueFilterUpdate()
             }
 
             override fun removeUpdate(p0: DocumentEvent?) {
-                updateFilter()
+                enqueueFilterUpdate()
 
             }
 
             override fun changedUpdate(p0: DocumentEvent?) {
-                updateFilter()
+                enqueueFilterUpdate()
             }
         })
     }
@@ -149,7 +151,7 @@ class MainTab : JPanel(GridBagLayout()) {
         addChangeListener {
             if ((value as Double) > (seedHighSpinner.value as Double))
                 seedHighSpinner.value = value
-            updateFilter()
+            enqueueFilterUpdate()
         }
     }
 
@@ -158,7 +160,7 @@ class MainTab : JPanel(GridBagLayout()) {
         addChangeListener {
             if ((value as Double) < (seedLowSpinner.value as Double))
                 seedLowSpinner.value = value
-            updateFilter()
+            enqueueFilterUpdate()
         }
     }
 
@@ -185,23 +187,6 @@ class MainTab : JPanel(GridBagLayout()) {
             getColumn(3).minWidth = 48
             getColumn(4).maxWidth = 160
             getColumn(4).preferredWidth = 160
-        }
-    }
-
-    fun addTorrentToTable() {
-        // stub
-        val model = torrentsTable.model as DefaultTableModel
-        val torrentsFromDb = TorrentRepository.getAllTorrents()
-        for (torrentItem in torrentsFromDb){
-            model.addRow(
-                arrayOf(
-                    false,
-                    torrentItem.date,
-                    torrentItem.name,
-                    torrentItem.seeds,
-                    "TODO"
-                )
-            )
         }
     }
 
@@ -254,7 +239,6 @@ class MainTab : JPanel(GridBagLayout()) {
         constraints.weighty = 1.0
         constraints.fill = GridBagConstraints.BOTH
         add(JScrollPane(torrentsTable), constraints)
-        addTorrentToTable()
     }
 
     fun buildControlButtonsPanel(): JComponent {
@@ -395,7 +379,7 @@ class MainTab : JPanel(GridBagLayout()) {
         val checkbox = JCheckBox(title)
         checkbox.isSelected = checked
         checkbox.addItemListener {
-            updateFilter()
+            enqueueFilterUpdate()
         }
         return checkbox
     }
@@ -405,7 +389,7 @@ class MainTab : JPanel(GridBagLayout()) {
         checkbox.isSelected = checked
         checkbox.setAlignmentX(Component.LEFT_ALIGNMENT)
         checkbox.addItemListener {
-            updateFilter()
+            enqueueFilterUpdate()
         }
         return checkbox
     }
@@ -414,21 +398,68 @@ class MainTab : JPanel(GridBagLayout()) {
         val spinner = JSpinner()
         spinner.value = value
         spinner.addChangeListener {
-            updateFilter()
+            enqueueFilterUpdate()
         }
         return spinner
     }
 
-    fun updateFilter() {
+    fun enqueueFilterUpdate() {
         // ждём немного времени чтобы пользователь завершил установку всех параметров
         updateFilterTimer.cancel()
         updateFilterTimer = Timer()
         updateFilterTimer.schedule(object : TimerTask() {
             override fun run() {
-                println("Пока фильтр не обновляется")
+                queryAndUpdateTable()
             }
 
         }, 1500)
+    }
+
+    fun queryAndUpdateTable() {
+        val torrentFilter = TorrentFilterCriteria(
+            sortAscendingRadio.isSelected,
+            when {
+                sortTitleRadio.isSelected -> TorrentFilterCriteria.SortOrder.NAME
+                sortSizeRadio.isSelected -> TorrentFilterCriteria.SortOrder.SIZE
+                sortSeedsRadio.isSelected -> TorrentFilterCriteria.SortOrder.SEEDS
+                sortDateRadio.isSelected -> TorrentFilterCriteria.SortOrder.DATE
+                else -> TorrentFilterCriteria.SortOrder.SEEDS
+            },
+            ArrayList<TorrentFilterCriteria.ForumStatus>().apply {
+                if (notVerifiedCheckbox.isSelected)
+                    add(TorrentFilterCriteria.ForumStatus.NOT_VERIFIED)
+                if (verifiedCheckbox.isSelected)
+                    add(TorrentFilterCriteria.ForumStatus.VERIFIED)
+                if (notFormalizedCheckbox.isSelected)
+                    add(TorrentFilterCriteria.ForumStatus.NOT_FORMALIZED)
+                if (suspiciousCheckbox.isSelected)
+                    add(TorrentFilterCriteria.ForumStatus.SUSPICIOUS)
+                if (temporaryCheckbox.isSelected)
+                    add(TorrentFilterCriteria.ForumStatus.TEMPORARY)
+            },
+            ArrayList<TorrentFilterCriteria.Priority>().apply {
+                if (lowPriorityCheckbox.isSelected)
+                    add(TorrentFilterCriteria.Priority.LOW)
+                if (normalPriorityCheckbox.isSelected)
+                    add(TorrentFilterCriteria.Priority.NORMAL)
+                if (highPriorityCheckbox.isSelected)
+                    add(TorrentFilterCriteria.Priority.HIGH)
+            },
+        )
+        val torrentsFromDb = TorrentRepository.getFilteredTorrents(torrentFilter)
+        val model = torrentsTable.model as DefaultTableModel
+        model.rowCount = 0
+        for (torrentItem in torrentsFromDb) {
+            model.addRow(
+                arrayOf(
+                    false,
+                    torrentItem.date,
+                    torrentItem.name,
+                    torrentItem.seeds,
+                    "TODO"
+                )
+            )
+        }
     }
 
     fun resetFilter() {
@@ -444,6 +475,10 @@ class MainTab : JPanel(GridBagLayout()) {
         notFormalizedCheckbox.isSelected = true
         suspiciousCheckbox.isSelected = true
         temporaryCheckbox.isSelected = false
+
+        lowPriorityCheckbox.isSelected = false
+        normalPriorityCheckbox.isSelected = true
+        highPriorityCheckbox.isSelected = true
 
         averageSeedsSpinner.value = 14
         registerDateInput.value = Calendar.getInstance().apply {
