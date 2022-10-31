@@ -3,6 +3,7 @@ package db
 import entities.TorrentTableItem
 import utils.TorrentFilterCriteria
 import java.sql.DriverManager
+import java.util.*
 
 
 object TorrentRepository {
@@ -32,7 +33,7 @@ object TorrentRepository {
                 cachedHasNext = false
                 return TorrentTableItem(
                     resultSet.getString(1),
-                    resultSet.getDate(2),
+                    Date(resultSet.getInt(2)*1000L),
                     resultSet.getInt(3)
                 )
             }
@@ -69,7 +70,7 @@ object TorrentRepository {
                 cachedHasNext = false
                 return TorrentTableItem(
                     resultSet.getString(1),
-                    resultSet.getDate(2),
+                    Date(resultSet.getInt(2)*1000L),
                     resultSet.getInt(3)
                 )
             }
