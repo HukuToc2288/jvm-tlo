@@ -10,7 +10,7 @@ import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 
 
-class MainTab() : JPanel(GridBagLayout()) {
+class MainTab : JPanel(GridBagLayout()) {
 
     // Кнопки управления
 
