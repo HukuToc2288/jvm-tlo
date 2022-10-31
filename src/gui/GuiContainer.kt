@@ -1,6 +1,7 @@
 package gui
 
 import gui.tabs.MainTab
+import gui.tabs.SettingsTab
 
 import java.awt.Dimension
 import java.awt.GridLayout
@@ -37,6 +38,7 @@ private fun createAndShowGUI() {
     tabbedPane.addTab(
         "Главная", panel1
     )
+    tabbedPane.addTab("Настройки",SettingsTab())
     val mainPanel = JPanel(GridLayout(1, 1))
     frame.add(mainPanel)
     mainPanel.add(tabbedPane)

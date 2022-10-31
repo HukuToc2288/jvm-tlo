@@ -6,6 +6,7 @@ import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 
 
@@ -159,7 +160,32 @@ class MainTab() : JPanel(GridBagLayout()) {
     val fourthFilter = buildFourthFilter()
 
     // Таблица раздач
-    val torrentsTable = JTable(DefaultTableModel(arrayOf(" ", "Дата", "Название", "Сиды", "Хранители"), 5))
+    val torrentsTable = JTable().apply {
+        val tableModel = object : DefaultTableModel(null,arrayOf("", "Дата", "Название", "Сиды", "Хранители")){
+            override fun getColumnClass(c: Int): Class<*> {
+                return getValueAt(0, c)::class.java
+            }
+
+        }
+        model = tableModel
+        setDefaultEditor(Any::class.java, null)
+        columnModel.apply {
+            getColumn(0).maxWidth = 24
+            getColumn(0).minWidth = 24
+            getColumn(1).maxWidth = 80
+            getColumn(1).minWidth = 80
+            getColumn(3).maxWidth = 48
+            getColumn(3).minWidth = 48
+            getColumn(4).maxWidth = 480
+            getColumn(4).preferredWidth = 480
+        }
+    }
+
+    fun addTorrentToTable(){
+        // stub
+        val model = torrentsTable.model as DefaultTableModel
+        model.addRow(arrayOf(java.lang.Boolean(false),"27.01.2029","Полураспад ПолуСССР — Движение к Совершенству Через Задний Проход — 2020, MP3, 320 kbps",1,"HukuToc2288"))
+    }
 
     init {
         buildGui()
@@ -203,6 +229,7 @@ class MainTab() : JPanel(GridBagLayout()) {
         constraints.fill = GridBagConstraints.BOTH
         add(JScrollPane(torrentsTable), constraints)
 
+        addTorrentToTable()
     }
 
     fun buildControlButtonsPanel(): JComponent {
