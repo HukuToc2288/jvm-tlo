@@ -1,10 +1,8 @@
 package gui
 
 import gui.tabs.MainTab
-import gui.tabs.SettingsTab
 
 import java.awt.Dimension
-import java.awt.GridLayout
 import java.lang.Exception
 import javax.swing.*
 
@@ -38,9 +36,24 @@ private fun createAndShowGUI() {
     tabbedPane.addTab(
         "Главная", panel1
     )
-    tabbedPane.addTab("Настройки",SettingsTab())
-    val mainPanel = JPanel(GridLayout(1, 1))
+    val mainPanel = JPanel().apply {
+        layout = OverlayLayout(this)
+    }
     frame.add(mainPanel)
+
+
+    val settingsButton = JButton("Настройки").apply {
+        addActionListener {
+            SettingsWindow().isVisible = true
+        }
+    }
+    settingsButton.isOpaque = false
+    settingsButton.alignmentX = 1.0f
+    settingsButton.alignmentY = 0.0f
+
+    mainPanel.add(settingsButton)
+    tabbedPane.alignmentX = 1f
+    tabbedPane.alignmentY = 0f
     mainPanel.add(tabbedPane)
 
     //Display the window.
