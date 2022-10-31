@@ -2,19 +2,22 @@ package gui.tabs
 
 import java.awt.*
 import java.text.SimpleDateFormat
+import java.util.*
+import java.util.Timer
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
-import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 
 
 class MainTab : JPanel(GridBagLayout()) {
 
+    var updateFilterTimer = Timer()
+
     // Кнопки управления
 
-    val showFilterButton = buildControlButton("filter.png"){
+    val showFilterButton = buildControlButton("filter.png") {
         firstFilter.isVisible = !fourthFilter.isVisible
         secondFilter.isVisible = !fourthFilter.isVisible
         thirdFilter.isVisible = !fourthFilter.isVisible
@@ -48,10 +51,10 @@ class MainTab : JPanel(GridBagLayout()) {
 
     // Второй фильтр
 
-    val verifiedCheckbox = buildFilterCheckbox("не проверено")
-    val notVerifiedCheckbox = buildFilterCheckbox("проверено")
+    val notVerifiedCheckbox = buildFilterCheckbox("не проверено")
+    val verifiedCheckbox = buildFilterCheckbox("проверено")
     val notFormalizedCheckbox = buildFilterCheckbox("недооформлено")
-    val doubtfulCheckbox = buildFilterCheckbox("сомнительно")
+    val suspiciousCheckbox = buildFilterCheckbox("сомнительно")
     val temporaryCheckbox = buildFilterCheckbox("временная")
 
     val lowPriorityCheckbox = buildFilterCheckbox("низкий")
@@ -161,7 +164,7 @@ class MainTab : JPanel(GridBagLayout()) {
 
     // Таблица раздач
     val torrentsTable = JTable().apply {
-        val tableModel = object : DefaultTableModel(null,arrayOf("", "Дата", "Название", "Сиды", "Хранители")){
+        val tableModel = object : DefaultTableModel(null, arrayOf("", "Дата", "Название", "Сиды", "Хранители")) {
             override fun getColumnClass(c: Int): Class<*> {
                 return getValueAt(0, c)::class.java
             }
@@ -181,10 +184,18 @@ class MainTab : JPanel(GridBagLayout()) {
         }
     }
 
-    fun addTorrentToTable(){
+    fun addTorrentToTable() {
         // stub
         val model = torrentsTable.model as DefaultTableModel
-        model.addRow(arrayOf(java.lang.Boolean(false),"27.01.2029","Полураспад ПолуСССР — Движение к Совершенству Через Задний Проход — 2020, MP3, 320 kbps",1,"HukuToc2288"))
+        model.addRow(
+            arrayOf(
+                java.lang.Boolean(false),
+                "27.01.2029",
+                "Полураспад ПолуСССР — Движение к Совершенству Через Задний Проход — 2020, MP3, 320 kbps",
+                1,
+                "HukuToc2288"
+            )
+        )
     }
 
     init {
@@ -194,7 +205,13 @@ class MainTab : JPanel(GridBagLayout()) {
     fun buildGui() {
         var constraints = GridBagConstraints()
 
-        val topicSelector = JComboBox<String>(arrayOf("Раздачи из всех хранимых подразделов", "Раздачи с высоким приоритетом хранения", "Ъеъ")).apply {
+        val topicSelector = JComboBox<String>(
+            arrayOf(
+                "Раздачи из всех хранимых подразделов",
+                "Раздачи с высоким приоритетом хранения",
+                "Ъеъ"
+            )
+        ).apply {
 
         }
         constraints.fill = GridBagConstraints.HORIZONTAL
@@ -221,6 +238,8 @@ class MainTab : JPanel(GridBagLayout()) {
         constraints.gridx = 3
         add(fourthFilter, constraints)
 
+        resetFilter()
+
         constraints.gridx = 0
         constraints.gridy = 3
         constraints.gridwidth = 5
@@ -228,7 +247,6 @@ class MainTab : JPanel(GridBagLayout()) {
         constraints.weighty = 1.0
         constraints.fill = GridBagConstraints.BOTH
         add(JScrollPane(torrentsTable), constraints)
-
         addTorrentToTable()
     }
 
@@ -277,7 +295,7 @@ class MainTab : JPanel(GridBagLayout()) {
             add(notVerifiedCheckbox)
             add(verifiedCheckbox)
             add(notFormalizedCheckbox)
-            add(doubtfulCheckbox)
+            add(suspiciousCheckbox)
             add(temporaryCheckbox)
             add(buildSimpleSeparator())
             add(lowPriorityCheckbox)
@@ -395,6 +413,41 @@ class MainTab : JPanel(GridBagLayout()) {
     }
 
     fun updateFilter() {
-        println("Пока фильтр не обновляется")
+        // ждём немного времени чтобы пользователь завершил установку всех параметров
+        updateFilterTimer.cancel()
+        updateFilterTimer = Timer()
+        updateFilterTimer.schedule(object : TimerTask() {
+            override fun run() {
+                println("Пока фильтр не обновляется")
+            }
+
+        }, 1500)
+    }
+
+    fun resetFilter() {
+        keepCheckbox.isSelected = false
+        noKeepCheckbox.isSelected = true
+        downloadingCheckbox.isSelected = false
+
+        sortAscendingRadio.isSelected = true
+        sortSeedsRadio.isSelected = true
+
+        notVerifiedCheckbox.isSelected = false
+        verifiedCheckbox.isSelected = true
+        notFormalizedCheckbox.isSelected = true
+        suspiciousCheckbox.isSelected = true
+        temporaryCheckbox.isSelected = false
+
+        averageSeedsSpinner.value = 14
+        registerDateInput.value = Calendar.getInstance().apply {
+            add(Calendar.MONTH, -1)
+        }.time
+        searchByPhraseField.text = ""
+        searchTitleRadio.isSelected = true
+
+        greenCheckbox.isSelected = false
+        noKeepersCheckbox.isSelected = true
+        noSeedersCheckbox.isSelected = false
+        hasSeedersCheckbox.isSelected = false
     }
 }
