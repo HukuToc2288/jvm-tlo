@@ -1,5 +1,7 @@
 package gui.tabs
 
+import db.TorrentRepository
+import utils.DateTableCellRenderer
 import java.awt.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -170,6 +172,7 @@ class MainTab : JPanel(GridBagLayout()) {
             }
 
         }
+        tableHeader.reorderingAllowed = false
         model = tableModel
         setDefaultEditor(Any::class.java, null)
         columnModel.apply {
@@ -177,25 +180,29 @@ class MainTab : JPanel(GridBagLayout()) {
             getColumn(0).minWidth = 24
             getColumn(1).maxWidth = 80
             getColumn(1).minWidth = 80
+            getColumn(1).setCellRenderer(DateTableCellRenderer("dd.MM.yyyy"))
             getColumn(3).maxWidth = 48
             getColumn(3).minWidth = 48
-            getColumn(4).maxWidth = 480
-            getColumn(4).preferredWidth = 480
+            getColumn(4).maxWidth = 160
+            getColumn(4).preferredWidth = 160
         }
     }
 
     fun addTorrentToTable() {
         // stub
         val model = torrentsTable.model as DefaultTableModel
-        model.addRow(
-            arrayOf(
-                java.lang.Boolean(false),
-                "27.01.2029",
-                "Полураспад ПолуСССР — Движение к Совершенству Через Задний Проход — 2020, MP3, 320 kbps",
-                1,
-                "HukuToc2288"
+        val torrentsFromDb = TorrentRepository.getAllTorrents()
+        for (torrentItem in torrentsFromDb){
+            model.addRow(
+                arrayOf(
+                    false,
+                    torrentItem.date,
+                    torrentItem.name,
+                    torrentItem.seeds,
+                    "TODO"
+                )
             )
-        )
+        }
     }
 
     init {
