@@ -129,12 +129,24 @@ class MainTab : JPanel(GridBagLayout()) {
     val greenCheckbox = buildFilterCheckbox("\"зелёные\"")
     val noKeepersCheckbox: JCheckBox = buildFilterCheckbox("нет хранителей").apply {
         addItemListener {
-            if (this.isSelected) hasKeepersCheckbox.isSelected = false
+            if (this.isSelected) {
+                noDownloadedCheckbox.isSelected = false
+                hasDownloadedCheckbox.isSelected = false
+            }
         }
     }
-    val hasKeepersCheckbox: JCheckBox = buildFilterCheckbox("есть хранители").apply {
+    val noDownloadedCheckbox: JCheckBox = buildFilterCheckbox("нет скачавших хранителей").apply {
         addItemListener {
-            if (this.isSelected) noKeepersCheckbox.isSelected = false
+            if (this.isSelected) {
+                noKeepersCheckbox.isSelected = false
+            }
+        }
+    }
+    val hasDownloadedCheckbox: JCheckBox = buildFilterCheckbox("есть скачавшие хранители").apply {
+        addItemListener {
+            if (this.isSelected) {
+                noKeepersCheckbox.isSelected = false
+            }
         }
     }
     val noSeedersCheckbox: JCheckBox = buildFilterCheckbox("нет сидов-хранителей").apply {
@@ -333,7 +345,10 @@ class MainTab : JPanel(GridBagLayout()) {
             add(noKeepersCheckbox.apply {
                 setAlignmentX(Component.LEFT_ALIGNMENT)
             })
-            add(hasKeepersCheckbox.apply {
+            add(noDownloadedCheckbox.apply {
+                setAlignmentX(Component.LEFT_ALIGNMENT)
+            })
+            add(hasDownloadedCheckbox.apply {
                 setAlignmentX(Component.LEFT_ALIGNMENT)
             })
             add(noSeedersCheckbox.apply {
@@ -442,14 +457,19 @@ class MainTab : JPanel(GridBagLayout()) {
             seedHighSpinner.value as Double,
             try {
                 SimpleDateFormat("dd.MM.yyyy").parse(registerDateInput.value as String)
-            } catch (e: Exception){
+            } catch (e: Exception) {
                 // TODO: 01.11.2022 prompt incorrect date
                 Calendar.getInstance().apply {
                     add(Calendar.MONTH, -1)
                 }.time
             },
             searchByPhraseField.text,
-            ""
+            "", // TODO: 01.11.2022 
+            noKeepersCheckbox.isSelected,
+            noDownloadedCheckbox.isSelected,
+            hasDownloadedCheckbox.isSelected,
+            noSeedersCheckbox.isSelected,
+            hasSeedersCheckbox.isSelected,
         )
         val torrentsFromDb = TorrentRepository.getFilteredTorrents(torrentFilter)
         val model = torrentsTable.model as TorrentTableModel
@@ -486,6 +506,8 @@ class MainTab : JPanel(GridBagLayout()) {
 
         greenCheckbox.isSelected = false
         noKeepersCheckbox.isSelected = true
+        noDownloadedCheckbox.isSelected = false
+        hasDownloadedCheckbox.isSelected = false
         noSeedersCheckbox.isSelected = false
         hasSeedersCheckbox.isSelected = false
     }

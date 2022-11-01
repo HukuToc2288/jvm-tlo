@@ -7,5 +7,5 @@ class TorrentItem(
     val name: String,
     val date: Date,
     val seeds: Int,
-    val keeper: KeeperItem
+    val keeper: KeeperItem?
 )

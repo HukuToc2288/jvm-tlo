@@ -10,15 +10,18 @@ class TorrentTableItem(
     val date: Date,
     val seeds: Int,
     val keepers: MutableList<KeeperItem>
-){
+) {
     companion object {
-        fun fromTorrentItem(item: TorrentItem): TorrentTableItem{
+        fun fromTorrentItem(item: TorrentItem): TorrentTableItem {
             return TorrentTableItem(
                 item.topicId,
                 item.name,
                 item.date,
                 item.seeds,
-                mutableListOf(item.keeper)
+                if (item.keeper != null)
+                    mutableListOf(item.keeper)
+                else
+                    mutableListOf()
             )
         }
     }

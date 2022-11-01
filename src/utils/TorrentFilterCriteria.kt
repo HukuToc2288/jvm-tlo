@@ -17,6 +17,12 @@ class TorrentFilterCriteria(
     val titleSearchText: String,
     val keeperSearchText: String,
 
+    val noKeepers: Boolean,
+    val noDownloaded: Boolean,
+    val hasDownloaded: Boolean,
+    val noSeeders: Boolean,
+    val hasSeeders: Boolean,
+
     // TODO: 31.10.2022 add other criteria
 ) {
     enum class SortOrder {
