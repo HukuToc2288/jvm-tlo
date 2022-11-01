@@ -15,6 +15,7 @@ class TorrentFilterCriteria(
     val registerDate: Date,
 
     val titleSearchText: String,
+    val keeperSearchText: String,
 
     // TODO: 31.10.2022 add other criteria
 ) {

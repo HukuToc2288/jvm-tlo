@@ -3,6 +3,7 @@ package gui.tabs
 import db.TorrentRepository
 import utils.DateTableCellRenderer
 import utils.TorrentFilterCriteria
+import utils.TorrentTableModel
 import java.awt.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -168,25 +169,17 @@ class MainTab : JPanel(GridBagLayout()) {
 
     // Таблица раздач
     val torrentsTable = JTable().apply {
-        val tableModel = object : DefaultTableModel(null, arrayOf("", "Дата", "Название", "Сиды", "Хранители")) {
-            override fun getColumnClass(c: Int): Class<*> {
-                return getValueAt(0, c)::class.java
-            }
-
-        }
+        val tableModel = TorrentTableModel()
         tableHeader.reorderingAllowed = false
         model = tableModel
         setDefaultEditor(Any::class.java, null)
         columnModel.apply {
-            getColumn(0).maxWidth = 24
-            getColumn(0).minWidth = 24
-            getColumn(1).maxWidth = 80
-            getColumn(1).minWidth = 80
-            getColumn(1).setCellRenderer(DateTableCellRenderer("dd.MM.yyyy"))
-            getColumn(3).maxWidth = 48
-            getColumn(3).minWidth = 48
-            getColumn(4).maxWidth = 160
-            getColumn(4).preferredWidth = 160
+            getColumn(0).maxWidth = 80
+            getColumn(0).minWidth = 80
+            getColumn(2).maxWidth = 48
+            getColumn(2).minWidth = 48
+            getColumn(3).maxWidth = 160
+            getColumn(3).preferredWidth = 160
         }
     }
 
@@ -455,21 +448,14 @@ class MainTab : JPanel(GridBagLayout()) {
                     add(Calendar.MONTH, -1)
                 }.time
             },
-            searchByPhraseField.text
+            searchByPhraseField.text,
+            ""
         )
         val torrentsFromDb = TorrentRepository.getFilteredTorrents(torrentFilter)
-        val model = torrentsTable.model as DefaultTableModel
-        model.rowCount = 0
+        val model = torrentsTable.model as TorrentTableModel
+        model.clear()
         for (torrentItem in torrentsFromDb) {
-            model.addRow(
-                arrayOf(
-                    false,
-                    torrentItem.date,
-                    torrentItem.name,
-                    torrentItem.seeds,
-                    "TODO"
-                )
-            )
+            model.addOrUpdateTorrent(torrentItem)
         }
     }
 
