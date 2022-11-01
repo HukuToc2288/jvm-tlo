@@ -25,7 +25,9 @@ class TorrentTableModel : AbstractTableModel() {
             0 -> dateFormat.format(torrent.date)
             1 -> torrent.name
             2 -> torrent.seeds
-            3 -> torrent.keepers.joinToString(", ")
+            3 -> torrent.keepers.joinToString(",","<html>","</html>"){
+                it.coloredName()
+            }
             else -> "WTF!?"
         }
     }
@@ -45,6 +47,11 @@ class TorrentTableModel : AbstractTableModel() {
 
     fun getValueAt(row: Int): TorrentTableItem {
         return torrentList[row]
+    }
+
+    fun addTorrent(tableItem: TorrentTableItem) {
+        torrentList.add(tableItem)
+        fireTableRowsInserted(rowCount - 1, rowCount - 1)
     }
 
     // assuming that everything grouped by topic id

@@ -1,8 +1,9 @@
 package gui.tabs
 
 import db.TorrentRepository
-import utils.DateTableCellRenderer
+import entities.KeeperItem
 import utils.TorrentFilterCriteria
+import utils.TorrentTableItem
 import utils.TorrentTableModel
 import java.awt.*
 import java.text.SimpleDateFormat
@@ -12,7 +13,6 @@ import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
-import javax.swing.table.DefaultTableModel
 import kotlin.collections.ArrayList
 
 
@@ -190,8 +190,8 @@ class MainTab : JPanel(GridBagLayout()) {
             getColumn(0).minWidth = 80
             getColumn(2).maxWidth = 48
             getColumn(2).minWidth = 48
-            getColumn(3).maxWidth = 160
-            getColumn(3).preferredWidth = 160
+            getColumn(3).maxWidth = 320
+            getColumn(3).preferredWidth = 320
         }
     }
 
@@ -474,8 +474,60 @@ class MainTab : JPanel(GridBagLayout()) {
         val torrentsFromDb = TorrentRepository.getFilteredTorrents(torrentFilter)
         val model = torrentsTable.model as TorrentTableModel
         model.clear()
+        var currentTorrentTableItem: TorrentTableItem? = null
+        var hasDownloadingStatus = false
+        var hasKeepingStatus = false
+        var hasSeedingStatus = false
+        var hasFullStatus = false
         for (torrentItem in torrentsFromDb) {
-            model.addOrUpdateTorrent(torrentItem)
+            if (currentTorrentTableItem == null || currentTorrentTableItem.topicId == torrentItem.topicId) {
+                // дропаем бота статистики
+                if (torrentItem.keeper?.name == "StatsBot")
+                    continue
+                // добавляем хранителей к текущей раздаче
+                torrentItem.keeper?.let {
+                    when (it.status) {
+                        KeeperItem.Status.DOWNLOADING -> hasDownloadingStatus = true
+                        KeeperItem.Status.KEEPING -> hasKeepingStatus = true
+                        KeeperItem.Status.SEEDING -> hasSeedingStatus = true
+                        KeeperItem.Status.FULL -> {
+                            hasKeepingStatus = true
+                            hasSeedingStatus = true
+                            hasFullStatus = true
+                        }
+                    }
+                    if (currentTorrentTableItem == null)
+                        currentTorrentTableItem = TorrentTableItem.fromTorrentItem(torrentItem)
+                    else
+                        currentTorrentTableItem!!.keepers.add(it)
+                } ?: kotlin.run {
+                    currentTorrentTableItem = TorrentTableItem.fromTorrentItem(torrentItem)
+                }
+            } else {
+                if (currentTorrentTableItem == null)
+                    currentTorrentTableItem = TorrentTableItem.fromTorrentItem(torrentItem)
+                // добавляем или не добавляем в таблицу
+                var meetCriteria = true
+                if (hasSeedersCheckbox.isSelected && !hasSeedingStatus || noSeedersCheckbox.isSelected && hasSeedingStatus)
+                    meetCriteria = false
+                if (noKeepersCheckbox.isSelected && (hasKeepingStatus || hasDownloadingStatus))
+                    meetCriteria = false
+                if (noDownloadedCheckbox.isSelected && hasDownloadedCheckbox.isSelected && !(hasKeepingStatus || hasDownloadingStatus) ||
+                    noDownloadedCheckbox.isSelected && !hasDownloadedCheckbox.isSelected && (hasKeepingStatus || !hasDownloadingStatus) ||
+                    hasDownloadedCheckbox.isSelected && !noDownloadedCheckbox.isSelected && !hasKeepingStatus
+                )
+                    meetCriteria = false
+
+                if (meetCriteria)
+                    model.addTorrent(currentTorrentTableItem!!)
+
+                // начинаем новую раздачу
+                hasDownloadingStatus = false
+                hasKeepingStatus = false
+                hasSeedingStatus = false
+                hasFullStatus = false
+                currentTorrentTableItem = null
+            }
         }
     }
 

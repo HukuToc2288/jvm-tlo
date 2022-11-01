@@ -8,22 +8,25 @@ class KeeperItem(
     var status: Status
 ) {
     override fun toString(): String {
-        // TODO: 01.11.2022 make it more beautiful
-        return when (status) {
-            Status.DOWNLOADING -> "(D) "
-            Status.KEEPING -> "(K) "
-            Status.SEEDING -> "(S) "
-            Status.FULL -> "(F) "
-        } + name
+        return name
+    }
+
+    fun coloredName():String {
+        return "<font color='" + when (status) {
+            Status.DOWNLOADING -> "red"
+            Status.KEEPING -> "yellow"
+            Status.SEEDING -> "aqua"
+            Status.FULL -> "lime"
+        } +"'>"+ name + "</font>"
     }
 
     override fun equals(other: Any?): Boolean {
         if (other === this)
             return true
-        if (other !is KeeperItem)
-            return false
+        return if (other !is KeeperItem)
+            false
         else
-            return other.name == this.name
+            other.name == this.name
     }
 
     fun updateStatus(newStatus: Status) {

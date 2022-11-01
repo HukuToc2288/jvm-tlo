@@ -53,33 +53,37 @@ object TorrentRepository {
                     " AND se >= ${filter.minAverageSeeds} AND  se <= ${filter.maxAverageSeeds}" +
                     " AND rg <= ${(filter.registerDate.time / 1000).toInt()}" +
                     " AND na LIKE ? ESCAPE '\\'" +
-                    when {
-                        // проверятся только наличие в отчёте, как в Web-TLO
-                        filter.noKeepers -> {
-                            " AND Keepers.nick IS NULL"
-                        }
-                        else -> ""
-                    } +
-                    when {
-                        filter.hasDownloaded -> {
-                            // есть в отчёте и скачал
-                            " AND Keepers.nick IS NOT NULL AND Keepers.complete = 1"
-                        }
-                        filter.noDownloaded -> {
-                            // есть в отчёте но не скачал
-                            " AND Keepers.nick IS NOT NULL AND Keepers.complete = 0"
-                        }
-                        else -> ""
-                    } +
-                    when {
-                        filter.hasSeeders -> {
-                            " AND KeepersSeeders.nick IS NOT NULL"
-                        }
-                        filter.noSeeders -> {
-                            " AND KeepersSeeders.nick IS NULL"
-                        }
-                        else -> ""
-                    } +
+                    // сложная механика, поэтому фильтруем уже на фронте
+//                    when {
+//                        filter.noKeepers -> {
+//                            // проверятся только наличие в отчёте, как в Web-TLO
+//                            " AND Keepers.nick IS NULL"
+//                        }
+//                        // обе галочки выбраны = Есть хранитель из Web-TLO
+//                        filter.hasDownloaded && filter.noDownloaded -> {
+//                            " AND Keepers.nick IS NOT NULL"
+//                        }
+//                        filter.hasDownloaded -> {
+//                            // есть в отчёте и скачал
+//                            // или уже раздаёт, но в отчёте отображается как не скачал
+//                            " AND Keepers.nick IS NOT NULL AND (Keepers.complete = 1" +
+//                                    " OR KeepersSeeders.nick IS NOT NULL)"
+//                        }
+//                        filter.noDownloaded -> {
+//                            // есть в отчёте но не скачал по отчёту и не раздаёт фактически
+//                            " AND (Keepers.nick IS NOT NULL AND Keepers.complete != 1 AND KeepersSeeders.nick IS NULL)"
+//                        }
+//                        else -> ""
+//                    } +
+//                    when {
+//                        filter.hasSeeders -> {
+//                            " AND KeepersSeeders.nick IS NOT NULL"
+//                        }
+//                        filter.noSeeders -> {
+//                            " AND KeepersSeeders.nick IS NULL"
+//                        }
+//                        else -> ""
+//                    } +
                     " ORDER BY Topics." +
                     "${
                         when (filter.sortOrder) {
