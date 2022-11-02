@@ -1,7 +1,5 @@
 package entities
 
-import kotlin.test.todo
-
 
 class KeeperItem(
     val name: String,
