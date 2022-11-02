@@ -420,7 +420,7 @@ class MainTab : JPanel(GridBagLayout()) {
                 queryAndUpdateTable()
             }
 
-        }, 1500)
+        }, 200)
     }
 
     fun queryAndUpdateTable() {
@@ -529,6 +529,8 @@ class MainTab : JPanel(GridBagLayout()) {
                 currentTorrentTableItem = null
             }
         }
+        model.commit()
+        println("final row count is "+model.rowCount)
     }
 
     fun resetFilter() {

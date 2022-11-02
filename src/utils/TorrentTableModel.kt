@@ -42,7 +42,6 @@ class TorrentTableModel : AbstractTableModel() {
 
     fun clear() {
         torrentList.clear()
-        fireTableDataChanged()
     }
 
     fun getValueAt(row: Int): TorrentTableItem {
@@ -51,7 +50,6 @@ class TorrentTableModel : AbstractTableModel() {
 
     fun addTorrent(tableItem: TorrentTableItem) {
         torrentList.add(tableItem)
-        fireTableRowsInserted(rowCount - 1, rowCount - 1)
     }
 
     // assuming that everything grouped by topic id
@@ -65,10 +63,12 @@ class TorrentTableModel : AbstractTableModel() {
                     it.add(item.keeper)
 
             }
-            fireTableCellUpdated(rowCount - 1, 3)
         } else {
             torrentList.add(TorrentTableItem.fromTorrentItem(item))
-            fireTableRowsInserted(rowCount - 1, rowCount - 1)
         }
+    }
+
+    fun commit(){
+        fireTableDataChanged()
     }
 }
