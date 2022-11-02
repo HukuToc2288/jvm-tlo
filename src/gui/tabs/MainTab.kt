@@ -22,11 +22,33 @@ class MainTab : JPanel(GridBagLayout()) {
 
     // Кнопки управления
 
-    val showFilterButton = buildControlButton("filter.png") {
+    val showFilterButton = buildControlButton("filter") {
         firstFilter.isVisible = !fourthFilter.isVisible
         secondFilter.isVisible = !fourthFilter.isVisible
         thirdFilter.isVisible = !fourthFilter.isVisible
         fourthFilter.isVisible = !fourthFilter.isVisible
+    }
+
+    val resetFilterButton = buildControlButton("resetFilter") {
+        resetFilter()
+    }
+
+    val selectAllButton = buildControlButton("selectAll") {
+        torrentsTable.selectAll()
+    }
+
+    val unselectAllButton = buildControlButton("unselectAll") {
+        torrentsTable.clearSelection()
+    }
+
+    val invertSelectionButton = buildControlButton("invertSelection") {
+        // FIXME: 02.11.2022 если будет тормозить на большой таблице то сделать через интервалы
+        for (i in 0 until torrentsTable.rowCount) {
+            if (torrentsTable.isRowSelected(i))
+                torrentsTable.removeRowSelectionInterval(i, i)
+            else
+                torrentsTable.addRowSelectionInterval(i, i)
+        }
     }
 
     // Первый фильтр
@@ -261,11 +283,16 @@ class MainTab : JPanel(GridBagLayout()) {
         val container: JPanel = JPanel()
         container.setLayout(FlowLayout(FlowLayout.LEFT, 0, 0))
         container.add(showFilterButton)
+        container.add(resetFilterButton)
+        container.add(Box.createHorizontalStrut(10))
+        container.add(selectAllButton)
+        container.add(unselectAllButton)
+        container.add(invertSelectionButton)
         return container
     }
 
     fun buildControlButton(image: String, onClick: () -> Unit): JButton {
-        val buttonImage = ImageIcon(javaClass.getResource("/res/images/" + image))
+        val buttonImage = ImageIcon(javaClass.getResource("/res/images/$image.png"))
         val button = JButton().apply {
             icon = buttonImage
             addActionListener {
