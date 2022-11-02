@@ -11,13 +11,13 @@ class KeeperItem(
         return name
     }
 
-    fun coloredName():String {
+    fun coloredName(): String {
         return "<font color='" + when (status) {
             Status.DOWNLOADING -> "red"
             Status.KEEPING -> "yellow"
             Status.SEEDING -> "aqua"
             Status.FULL -> "lime"
-        } +"'>"+ name + "</font>"
+        } + "'>" + name + "</font>"
     }
 
     override fun equals(other: Any?): Boolean {
@@ -26,7 +26,7 @@ class KeeperItem(
         return if (other !is KeeperItem)
             false
         else
-            other.name == this.name
+            other.name.equals(this.name, true)
     }
 
     fun updateStatus(newStatus: Status) {

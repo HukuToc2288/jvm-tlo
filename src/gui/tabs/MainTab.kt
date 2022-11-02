@@ -116,11 +116,22 @@ class MainTab : JPanel(GridBagLayout()) {
         })
     }
 
-    val searchTitleRadio = buildFilterRadiobutton("В названии раздачи", true)
-    val searchKeeperRadio = buildFilterRadiobutton("В имени хранителя")
-    val searchRadioGroup = ButtonGroup().apply {
-        add(searchTitleRadio)
-        add(searchKeeperRadio)
+    val searchByKeeperField = JTextField().apply {
+        columns = 15
+        document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(p0: DocumentEvent?) {
+                enqueueFilterUpdate()
+            }
+
+            override fun removeUpdate(p0: DocumentEvent?) {
+                enqueueFilterUpdate()
+
+            }
+
+            override fun changedUpdate(p0: DocumentEvent?) {
+                enqueueFilterUpdate()
+            }
+        })
     }
 
     val thirdFilter = buildThirdFilter()
@@ -320,17 +331,29 @@ class MainTab : JPanel(GridBagLayout()) {
             add(buildSimpleSeparator().apply {
                 setAlignmentX(Component.LEFT_ALIGNMENT)
             })
-            add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {
-                add(JLabel("Поиск по фразе:"))
-                add(searchByPhraseField)
-            }.apply {
+            add(JPanel(GridBagLayout()).apply {
+                border = EmptyBorder(5, 5, 5, 5)
                 setAlignmentX(Component.LEFT_ALIGNMENT)
-            })
-            add(searchTitleRadio.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
-            })
-            add(searchKeeperRadio.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                val constraints = GridBagConstraints()
+                constraints.insets = Insets(2, 2, 2, 2)
+                constraints.anchor = GridBagConstraints.WEST
+                add(JLabel("Поиск"), constraints)
+                constraints.gridy = 1
+                add(JLabel("Название:"), constraints)
+                constraints.gridy = 2
+                add(JLabel("Хранитель:"), constraints)
+                constraints.gridx = 1
+                add(searchByKeeperField, constraints)
+                constraints.gridy = 1
+                add(searchByPhraseField, constraints)
+                constraints.gridy = 0
+                constraints.anchor = GridBagConstraints.EAST
+                add(JButton("Очистить").apply {
+                    addActionListener {
+                        searchByPhraseField.text = ""
+                        searchByKeeperField.text = ""
+                    }
+                }, constraints)
             })
         }
         return container
@@ -517,6 +540,16 @@ class MainTab : JPanel(GridBagLayout()) {
                     hasDownloadedCheckbox.isSelected && !noDownloadedCheckbox.isSelected && !hasKeepingStatus
                 )
                     meetCriteria = false
+                // TODO: 02.11.2022 сделать фильтрацию по тексту на лету без обращения к бд
+                if (searchByKeeperField.text.isNotEmpty() &&
+                    currentTorrentTableItem?.keepers?.contains(
+                        KeeperItem(
+                            searchByKeeperField.text,
+                            KeeperItem.Status.DOWNLOADING
+                        )
+                    ) == false
+                )
+                    meetCriteria = false
 
                 if (meetCriteria)
                     model.addTorrent(currentTorrentTableItem!!)
@@ -530,7 +563,7 @@ class MainTab : JPanel(GridBagLayout()) {
             }
         }
         model.commit()
-        println("final row count is "+model.rowCount)
+        println("final row count is " + model.rowCount)
     }
 
     fun resetFilter() {
@@ -556,7 +589,7 @@ class MainTab : JPanel(GridBagLayout()) {
             add(Calendar.MONTH, -1)
         }.time
         searchByPhraseField.text = ""
-        searchTitleRadio.isSelected = true
+        searchByKeeperField.text = ""
 
         greenCheckbox.isSelected = false
         noKeepersCheckbox.isSelected = true
