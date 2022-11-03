@@ -15,5 +15,6 @@
     <orderEntry type="library" name="com.squareup.retrofit2:converter-scalars:2.9.0" level="project" />
     <orderEntry type="library" name="com.squareup.okhttp3:logging-interceptor:3.9.0" level="project" />
     <orderEntry type="library" name="org.jsoup:jsoup:1.14.3" level="project" />
+    <orderEntry type="library" name="org.ini4j:ini4j:0.5.4" level="project" />
   </component>
 </module>

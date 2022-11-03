@@ -22,7 +22,7 @@ class SettingsWindow: JFrame("Настройки JVM-TLO") {
             AuthSettingsTab()
         )
 
-        minimumSize = Dimension(360, 280)
+        minimumSize = Dimension(400, 300)
         preferredSize = minimumSize
     }
 }

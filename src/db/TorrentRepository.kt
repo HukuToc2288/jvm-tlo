@@ -14,7 +14,7 @@ object TorrentRepository {
         Class.forName("org.sqlite.JDBC")
     }
 
-    val connection = DriverManager.getConnection("jdbc:sqlite:webtlo.db")
+    val connection = DriverManager.getConnection("jdbc:sqlite:files/webtlo.db")
 
 //    fun getAllTorrents(): Iterator<TorrentTableItem> {
 //        val statement = connection.createStatement()

@@ -2,6 +2,7 @@ package gui.tabs
 
 import db.TorrentRepository
 import entities.KeeperItem
+import utils.Settings
 import utils.TorrentFilterCriteria
 import utils.TorrentTableItem
 import utils.TorrentTableModel
