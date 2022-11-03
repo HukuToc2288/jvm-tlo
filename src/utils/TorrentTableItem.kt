@@ -1,7 +1,7 @@
 package utils
 
-import entities.KeeperItem
-import entities.TorrentItem
+import entities.db.KeeperItem
+import entities.db.TorrentItem
 import java.util.*
 
 class TorrentTableItem(

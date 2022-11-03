@@ -1,15 +1,24 @@
 package gui.tabs
 
+import api.forumCookieJar
+import api.forumRetrofit
+import api.keeperRetrofit
 import db.TorrentRepository
-import entities.KeeperItem
-import utils.Settings
+import entities.db.KeeperItem
+import entities.keeper.ForumTree
+import org.jsoup.Jsoup
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 import utils.TorrentFilterCriteria
 import utils.TorrentTableItem
 import utils.TorrentTableModel
 import java.awt.*
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.Timer
+import javax.imageio.ImageIO
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
@@ -50,6 +59,19 @@ class MainTab : JPanel(GridBagLayout()) {
             else
                 torrentsTable.addRowSelectionInterval(i, i)
         }
+    }
+
+    val updateForumButton = buildControlButton("resetFilter", "Вы явно не хотите нажимать сюда") {
+        keeperRetrofit.catForumTree().enqueue(object : Callback<ForumTree> {
+            override fun onResponse(call: Call<ForumTree>, response: Response<ForumTree>) {
+                val forumTree = response.body()
+                val breakpoint = 0
+            }
+
+            override fun onFailure(call: Call<ForumTree>, t: Throwable) {
+                t.printStackTrace()
+            }
+        })
     }
 
     // Первый фильтр
@@ -289,12 +311,14 @@ class MainTab : JPanel(GridBagLayout()) {
         container.add(selectAllButton)
         container.add(unselectAllButton)
         container.add(invertSelectionButton)
+        container.add(Box.createHorizontalStrut(10))
+        container.add(updateForumButton)
         return container
     }
 
-    fun buildControlButton(image: String, onClick: () -> Unit): JButton {
+    fun buildControlButton(image: String, text: String? = null, onClick: () -> Unit): JButton {
         val buttonImage = ImageIcon(javaClass.getResource("/res/images/$image.png"))
-        val button = JButton().apply {
+        val button = JButton(text).apply {
             icon = buttonImage
             addActionListener {
                 onClick()

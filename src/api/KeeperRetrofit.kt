@@ -1,8 +1,7 @@
 package api
 
-import okhttp3.Cookie
-import okhttp3.CookieJar
-import okhttp3.HttpUrl
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.ObjectMapper
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -14,23 +13,21 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.*
 
-// TODO: 03.11.2022 SOCKS4 прокси не работают, и с большой вероятностью не работают HTTPS
-// TODO: 03.11.2022 прокси с авторизацией
+val keeperCookieJar = SimpleCookieJar()
 
-val forumCookieJar = SimpleCookieJar()
-
-var forumRetrofit = createForumApi()
+var keeperRetrofit = createKeeperApi()
     private set
 
-private fun createForumApi(): ForumApi {
-    val clientBuildr = OkHttpClient.Builder()
+private fun createKeeperApi(): KeeperApi {
+    val clientBuilder = OkHttpClient.Builder()
         .addInterceptor(UserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"))
-        .addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
-        .cookieJar(forumCookieJar)
+        .addInterceptor(ApiKeyInterceptor(Settings.node("torrent-tracker")["api_key",""]))
+        .addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BASIC))
+        .cookieJar(keeperCookieJar)
     val proxySettings = Settings.node("proxy")
 
     Settings.node("proxy").let {
-        if (proxySettings["activate_forum", "0"].unquote() == "1") {
+        if (proxySettings["activate_api", "0"].unquote() == "1") {
             val proxyType =
                 if (it["type", "HTTP"].unquote()?.uppercase(Locale.getDefault())?.contains("SOCKS") == true) {
                     Proxy.Type.SOCKS
@@ -43,18 +40,20 @@ private fun createForumApi(): ForumApi {
                     it["port", ""].unquote()?.toInt() ?: 0
                 )
             )
-            clientBuildr.proxy(proxy)
+            clientBuilder.proxy(proxy)
         }
     }
     return Retrofit.Builder()
-        .baseUrl("https://rutracker.org/forum/")
-        .addConverterFactory(JacksonConverterFactory.create())
-        .client(clientBuildr.build())
+        .baseUrl("https://api.t-ru.org/")
+        .addConverterFactory(JacksonConverterFactory.create(ObjectMapper().apply {
+            configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,false)
+        }))
+        .client(clientBuilder.build())
         .build()
-        .create(ForumApi::class.java)
+        .create(KeeperApi::class.java)
 
 }
 
-fun rebuildForumApi() {
-    forumRetrofit = createForumApi()
+fun rebuildKeeperApi() {
+    keeperRetrofit = createKeeperApi()
 }

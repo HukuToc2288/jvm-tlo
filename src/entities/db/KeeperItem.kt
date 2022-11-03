@@ -1,4 +1,4 @@
-package entities
+package entities.db
 
 
 class KeeperItem(

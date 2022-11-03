@@ -1,4 +1,4 @@
-package entities
+package entities.db
 
 import java.util.*
 

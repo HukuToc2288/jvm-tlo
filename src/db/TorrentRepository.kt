@@ -1,7 +1,7 @@
 package db
 
-import entities.KeeperItem
-import entities.TorrentItem
+import entities.db.KeeperItem
+import entities.db.TorrentItem
 import utils.TorrentFilterCriteria
 import java.sql.DriverManager
 import java.util.*
