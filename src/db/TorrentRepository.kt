@@ -1,5 +1,6 @@
 package db
 
+import entities.db.ForumItem
 import entities.db.KeeperItem
 import entities.db.TorrentItem
 import utils.TorrentFilterCriteria
@@ -42,7 +43,6 @@ object TorrentRepository {
 //    }
 
     fun getFilteredTorrents(filter: TorrentFilterCriteria): Iterator<TorrentItem> {
-        // FIXME: 01.11.2022 некоторые комбинации галочек приводят к невероятным результатам
         val query =
             "SELECT Topics.id,Topics.na,Topics.rg,Topics.se,Keepers.nick,Keepers.complete,KeepersSeeders.nick FROM Topics" +
                     " LEFT OUTER JOIN Keepers ON Topics.id = Keepers.id" +
@@ -155,5 +155,33 @@ object TorrentRepository {
                 )
             }
         }
+    }
+
+    fun updateForums(forumList: Map<Int, ForumItem>) {
+        // TODO: 03.11.2022 process errors
+        connection.createStatement()
+            .execute("CREATE TEMPORARY TABLE ForumsNew AS SELECT id,na,qt,si FROM Forums WHERE 0 = 1")
+        connection.autoCommit = false
+        val insertTempStatement =
+            connection.prepareStatement("INSERT INTO temp.ForumsNew (id,na,qt,si) VALUES (?,?,?,?)")
+        for (forumItem in forumList) {
+            insertTempStatement.setInt(1, forumItem.key)
+            with(forumItem.value) {
+                insertTempStatement.setString(2, title)
+                insertTempStatement.setLong(3, count)
+                insertTempStatement.setLong(4, size)
+            }
+            insertTempStatement.addBatch()
+        }
+        insertTempStatement.executeBatch()
+
+        connection.createStatement()
+            .execute("INSERT INTO Forums (id,na,qt,si) SELECT id,na,qt,si FROM temp.ForumsNew")
+
+        connection.createStatement().execute("DELETE FROM Forums WHERE id IN (" +
+                " SELECT Forums.id FROM Forums" +
+                " LEFT JOIN temp.ForumsNew ON Forums.id = temp.ForumsNew.id" +
+                " WHERE temp.ForumsNew.id IS NULL)")
+        connection.createStatement().execute("DROP TABLE ForumsNew")
     }
 }

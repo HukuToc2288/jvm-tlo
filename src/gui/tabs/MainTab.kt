@@ -4,7 +4,9 @@ import api.forumCookieJar
 import api.forumRetrofit
 import api.keeperRetrofit
 import db.TorrentRepository
+import entities.db.ForumItem
 import entities.db.KeeperItem
+import entities.keeper.ForumSize
 import entities.keeper.ForumTree
 import org.jsoup.Jsoup
 import retrofit2.Call
@@ -24,6 +26,7 @@ import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
 
 
 class MainTab : JPanel(GridBagLayout()) {
@@ -62,14 +65,60 @@ class MainTab : JPanel(GridBagLayout()) {
     }
 
     val updateForumButton = buildControlButton("resetFilter", "Вы явно не хотите нажимать сюда") {
+        isEnabled = false
         keeperRetrofit.catForumTree().enqueue(object : Callback<ForumTree> {
             override fun onResponse(call: Call<ForumTree>, response: Response<ForumTree>) {
-                val forumTree = response.body()
-                val breakpoint = 0
+                val forumTree = response.body()!!
+
+                keeperRetrofit.forumSize().enqueue(object : Callback<ForumSize> {
+                    override fun onResponse(call: Call<ForumSize>, response: Response<ForumSize>) {
+                        val forumSize = response.body()!!
+                        // всё получили, создаём список
+                        val forumList = HashMap<Int, ForumItem>()
+                        for (category in forumTree.result.tree) {
+                            for (forum in category.value) {
+                                // добавляем большой форум если есть раздачи
+                                forumSize.result[forum.key]?.let {
+                                    forumList.put(
+                                        forum.key, ForumItem(
+                                            "${forumTree.result.categories[category.key]} »" +
+                                                    " ${forumTree.result.forums[forum.key]}",
+                                            it[0],
+                                            it[1]
+                                        )
+                                    )
+                                }
+                                for (subForum in forum.value) {
+                                    // добавляем подфорум если есть раздачи
+                                    forumSize.result[subForum]?.let {
+                                        forumList.put(
+                                            subForum, ForumItem(
+                                                "${forumTree.result.categories[category.key]} »" +
+                                                        " ${forumTree.result.forums[forum.key]} »" +
+                                                        " ${forumTree.result.forums[subForum]}",
+                                                it[0],
+                                                it[1]
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        // обновляем БД
+                        TorrentRepository.updateForums(forumList)
+                        isEnabled = true
+                    }
+
+                    override fun onFailure(call: Call<ForumSize>, t: Throwable) {
+                        t.printStackTrace()
+                        isEnabled = true
+                    }
+                })
             }
 
             override fun onFailure(call: Call<ForumTree>, t: Throwable) {
                 t.printStackTrace()
+                isEnabled = true
             }
         })
     }
