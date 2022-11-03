@@ -43,6 +43,7 @@ class AuthSettingsTab : JPanel(GridBagLayout()) {
                 return@addActionListener
             }
             isEnabled = false
+            showAuthStatus("Попытка авторизоваться...")
             forumRetrofit.login(
                 loginField.text,
                 passwordField.text,
@@ -57,7 +58,6 @@ class AuthSettingsTab : JPanel(GridBagLayout()) {
                     if (forumCookieJar.hasCookie("bb_session")) {
                         // наверное мы победили
                         showAuthCompleted("Авторизация успешна", "lime")
-                        isEnabled = true
                         return
                     }
                     val responsePage = Jsoup.parse(response.body())
@@ -82,8 +82,7 @@ class AuthSettingsTab : JPanel(GridBagLayout()) {
                 }
 
                 override fun onFailure(call: Call<String>, t: Throwable) {
-                    isEnabled = true
-                    t.printStackTrace()
+                    showAuthCompleted("Ошибка: "+t.localizedMessage,"red")
                 }
             })
         }
@@ -113,7 +112,6 @@ class AuthSettingsTab : JPanel(GridBagLayout()) {
     }
 
     private fun buildGui() {
-        // FIXME: 03.11.2022 если текст ошибки не влезает в строчку, все поля скукоживаются
         val constraints = GridBagConstraints()
         constraints.insets = Insets(2, 2, 2, 2)
 

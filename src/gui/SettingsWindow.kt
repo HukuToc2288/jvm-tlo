@@ -1,6 +1,7 @@
 package gui
 
 import gui.settings.AuthSettingsTab
+import gui.settings.ProxyTab
 import gui.tabs.MainTab
 import java.awt.Dimension
 import javax.swing.*
@@ -20,6 +21,10 @@ class SettingsWindow: JFrame("Настройки JVM-TLO") {
         tabbedPane.addTab(
             "Авторизация",
             AuthSettingsTab()
+        )
+        tabbedPane.addTab(
+            "Прокси",
+            ProxyTab()
         )
 
         minimumSize = Dimension(400, 300)
