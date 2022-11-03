@@ -1,8 +1,6 @@
 package gui.settings
 
-import utils.ResetBackgroundListener
-import utils.Settings
-import utils.unquote
+import utils.*
 import java.awt.Color
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -98,10 +96,27 @@ class ProxyTab : JPanel(GridBagLayout()) {
                 } else {
                     0
                 }
-            hostField.text = it["hostname",""].unquote()
-            portField.text = it["port",""].unquote()
-            loginField.text = it["login",""].unquote()
-            passwordField.text = it["password",""].unquote()
+            hostField.text = it["hostname", ""].unquote()
+            portField.text = it["port", ""].unquote()
+            loginField.text = it["login", ""].unquote()
+            passwordField.text = it["password", ""].unquote()
+        }
+    }
+
+    fun saveSettings() {
+        with(Settings.node("proxy")) {
+            put("activate_forum", proxyForumCheckbox.isSelected.toZeroOne())
+            put("activate_api", proxyApiCheckbox.isSelected.toZeroOne())
+            put(
+                "type", when (proxyTypeSelector.selectedIndex) {
+                    0 -> "http"
+                    else -> "socks5h"
+                }.quote()
+            )
+            put("hostname", hostField.text.quote())
+            put("port", portField.text.quote())
+            put("login", loginField.text.quote())
+            put("password", passwordField.text.quote())
         }
     }
 }
