@@ -1,15 +1,20 @@
 package db
 
+import entities.db.DbTopic
 import entities.db.ForumItem
 import entities.db.KeeperItem
 import entities.db.TorrentItem
+import entities.keeper.ForumTorrentTopicsData
 import utils.TorrentFilterCriteria
 import java.sql.DriverManager
 import java.util.*
+import kotlin.collections.HashSet
 
 
 object TorrentRepository {
 
+    // FIXME: 04.11.2022 в финальной версии это число должно быть >= 3600
+    private val updateTimeout = 1
 
     init {
         Class.forName("org.sqlite.JDBC")
@@ -157,6 +162,22 @@ object TorrentRepository {
         }
     }
 
+    fun shouldUpdateForums(): Boolean {
+        return shouldUpdate(8888)
+    }
+
+    fun shouldUpdateHighPriority(): Boolean {
+        return shouldUpdate(9999)
+    }
+
+    fun shouldUpdate(section: Int): Boolean {
+        with(connection.createStatement().executeQuery("SELECT ud FROM UpdateTime WHERE id = $section LIMIT 1")) {
+            val s = !next() || (getInt(1) + updateTimeout) < System.currentTimeMillis()
+            close()
+            return s
+        }
+    }
+
     fun updateForums(forumList: Map<Int, ForumItem>) {
         // TODO: 03.11.2022 process errors
         connection.createStatement()
@@ -178,10 +199,118 @@ object TorrentRepository {
         connection.createStatement()
             .execute("INSERT INTO Forums (id,na,qt,si) SELECT id,na,qt,si FROM temp.ForumsNew")
 
-        connection.createStatement().execute("DELETE FROM Forums WHERE id IN (" +
-                " SELECT Forums.id FROM Forums" +
-                " LEFT JOIN temp.ForumsNew ON Forums.id = temp.ForumsNew.id" +
-                " WHERE temp.ForumsNew.id IS NULL)")
+        connection.createStatement().execute(
+            "DELETE FROM Forums WHERE id IN (" +
+                    " SELECT Forums.id FROM Forums" +
+                    " LEFT JOIN temp.ForumsNew ON Forums.id = temp.ForumsNew.id" +
+                    " WHERE temp.ForumsNew.id IS NULL)"
+        )
         connection.createStatement().execute("DROP TABLE ForumsNew")
+        connection.createStatement()
+            .execute("INSERT INTO UpdateTime(id,ud) VALUES (8888,${(System.currentTimeMillis()).toInt()})")
+    }
+
+    fun appendNewTopics(topics: Set<DbTopic>) {
+        if (topics.isEmpty())
+            return
+        connection.createStatement().execute(
+            "CREATE TEMPORARY TABLE IF NOT EXISTS TopicsNew AS " +
+                    "SELECT id,ss,na,hs,se,si,st,rg,qt,ds,pt FROM Topics WHERE 0 = 1"
+        )
+        connection.autoCommit = false
+        val insertTempStatement =
+            connection.prepareStatement(
+                "INSERT INTO temp.TopicsNew (id,ss,na,hs,se,si,st,rg,qt,ds,pt)" +
+                        " VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+            )
+        for (topic in topics) {
+            insertTempStatement.setInt(1, topic.id)
+            insertTempStatement.setInt(2, topic.forumId)
+            insertTempStatement.setString(3, topic.title)
+            insertTempStatement.setString(4, topic.hash)
+            insertTempStatement.setInt(5, topic.seedsCount)
+            insertTempStatement.setLong(6, topic.size)
+            insertTempStatement.setInt(7, topic.status)
+            insertTempStatement.setInt(8, topic.date)
+            insertTempStatement.setInt(9, 1)
+            insertTempStatement.setInt(10, 0)
+            insertTempStatement.setInt(11, topic.priority)
+            insertTempStatement.addBatch()
+        }
+        insertTempStatement.executeBatch()
+    }
+
+    fun appendUpdatedTopics(topics: Set<DbTopic>) {
+        if (topics.isEmpty())
+            return
+        connection.createStatement().execute(
+            "CREATE TEMPORARY TABLE IF NOT EXISTS TopicsUpdated AS " +
+                    "SELECT id,ss,na,hs,se,si,st,rg,qt,ds,pt FROM Topics WHERE 0 = 1"
+        )
+        connection.autoCommit = false
+        val insertTempStatement =
+            connection.prepareStatement(
+                "INSERT INTO temp.TopicsUpdated (id,ss,na,hs,se,si,st,rg,qt,ds,pt)" +
+                        " VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+            )
+        for (topic in topics) {
+            insertTempStatement.setInt(1, topic.id)
+            insertTempStatement.setInt(2, topic.forumId)
+            insertTempStatement.setString(3, topic.title)
+            insertTempStatement.setString(4, topic.hash)
+            insertTempStatement.setInt(5, topic.seedsCount)
+            insertTempStatement.setLong(6, topic.size)
+            insertTempStatement.setInt(7, topic.status)
+            insertTempStatement.setInt(8, topic.date)
+            insertTempStatement.setInt(9, 1)
+            insertTempStatement.setInt(10, 0)
+            insertTempStatement.setInt(11, topic.priority)
+            insertTempStatement.addBatch()
+        }
+        insertTempStatement.executeBatch()
+    }
+
+    fun commitTopics() {
+        connection.autoCommit = true
+        connection.createStatement().execute(
+            "CREATE TEMPORARY TABLE IF NOT EXISTS TopicsUpdated AS " +
+                    "SELECT id,ss,na,hs,se,si,st,rg,qt,ds,pt FROM Topics WHERE 0 = 1"
+        )
+        connection.createStatement().execute(
+            "CREATE TEMPORARY TABLE IF NOT EXISTS TopicsNew AS " +
+                    "SELECT id,ss,na,hs,se,si,st,rg,qt,ds,pt FROM Topics WHERE 0 = 1"
+        )
+
+        // делаем всё как с обновлением дерева форумов
+        connection.createStatement()
+            .execute("INSERT INTO Topics (id,ss,na,hs,se,si,st,rg,qt,ds,pt)" +
+                    " SELECT id,ss,na,hs,se,si,st,rg,qt,ds,pt FROM temp.TopicsUpdated")
+
+        connection.createStatement().execute(
+            "DELETE FROM Topics WHERE id IN (" +
+                    " SELECT Topics.id FROM Topics" +
+                    " LEFT JOIN temp.TopicsUpdated ON Topics.id = temp.TopicsUpdated.id" +
+                    " WHERE temp.TopicsUpdated.id IS NULL)"
+        )
+        connection.createStatement().execute("DROP TABLE TopicsUpdated")
+
+        // новые темы просто вставляем
+        connection.createStatement()
+            .execute("INSERT INTO Topics (id,ss,na,hs,se,si,st,rg,qt,ds,pt)" +
+                    " SELECT id,ss,na,hs,se,si,st,rg,qt,ds,pt FROM temp.TopicsNew")
+
+        connection.createStatement().execute("DROP TABLE TopicsNew")
+    }
+
+    fun getTopicsByIds(ids: List<Int>): Map<Int, String> {
+        val resultSet = connection.createStatement().executeQuery(
+            "SELECT id,hs FROM Topics" +
+                    " WHERE id IN (${ids.joinToString(",")})"
+        )
+        val existingIds = HashMap<Int, String>()
+        while (resultSet.next()) {
+            existingIds[resultSet.getInt("id")] = resultSet.getString("hs")
+        }
+        return existingIds
     }
 }

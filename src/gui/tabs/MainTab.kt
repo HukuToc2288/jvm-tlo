@@ -1,32 +1,29 @@
 package gui.tabs
 
-import api.forumCookieJar
-import api.forumRetrofit
 import api.keeperRetrofit
 import db.TorrentRepository
+import entities.db.DbTopic
 import entities.db.ForumItem
 import entities.db.KeeperItem
+import entities.keeper.ForumKeepers
 import entities.keeper.ForumSize
+import entities.keeper.ForumTorrentTopicsData
 import entities.keeper.ForumTree
-import org.jsoup.Jsoup
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import utils.TorrentFilterCriteria
-import utils.TorrentTableItem
-import utils.TorrentTableModel
+import utils.*
 import java.awt.*
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.Timer
-import javax.imageio.ImageIO
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import kotlin.collections.HashSet
 
 
 class MainTab : JPanel(GridBagLayout()) {
@@ -64,63 +61,9 @@ class MainTab : JPanel(GridBagLayout()) {
         }
     }
 
-    val updateForumButton = buildControlButton("resetFilter", "Вы явно не хотите нажимать сюда") {
+    val updateForumButton = buildControlButton("death", "Вы явно не хотите нажимать сюда") {
         isEnabled = false
-        keeperRetrofit.catForumTree().enqueue(object : Callback<ForumTree> {
-            override fun onResponse(call: Call<ForumTree>, response: Response<ForumTree>) {
-                val forumTree = response.body()!!
-
-                keeperRetrofit.forumSize().enqueue(object : Callback<ForumSize> {
-                    override fun onResponse(call: Call<ForumSize>, response: Response<ForumSize>) {
-                        val forumSize = response.body()!!
-                        // всё получили, создаём список
-                        val forumList = HashMap<Int, ForumItem>()
-                        for (category in forumTree.result.tree) {
-                            for (forum in category.value) {
-                                // добавляем большой форум если есть раздачи
-                                forumSize.result[forum.key]?.let {
-                                    forumList.put(
-                                        forum.key, ForumItem(
-                                            "${forumTree.result.categories[category.key]} »" +
-                                                    " ${forumTree.result.forums[forum.key]}",
-                                            it[0],
-                                            it[1]
-                                        )
-                                    )
-                                }
-                                for (subForum in forum.value) {
-                                    // добавляем подфорум если есть раздачи
-                                    forumSize.result[subForum]?.let {
-                                        forumList.put(
-                                            subForum, ForumItem(
-                                                "${forumTree.result.categories[category.key]} »" +
-                                                        " ${forumTree.result.forums[forum.key]} »" +
-                                                        " ${forumTree.result.forums[subForum]}",
-                                                it[0],
-                                                it[1]
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        // обновляем БД
-                        TorrentRepository.updateForums(forumList)
-                        isEnabled = true
-                    }
-
-                    override fun onFailure(call: Call<ForumSize>, t: Throwable) {
-                        t.printStackTrace()
-                        isEnabled = true
-                    }
-                })
-            }
-
-            override fun onFailure(call: Call<ForumTree>, t: Throwable) {
-                t.printStackTrace()
-                isEnabled = true
-            }
-        })
+        updateForums()
     }
 
     // Первый фильтр
@@ -665,6 +608,190 @@ class MainTab : JPanel(GridBagLayout()) {
         }
         model.commit()
         println("final row count is " + model.rowCount)
+    }
+
+    fun updateForums() {
+        if (!TorrentRepository.shouldUpdateForums()) {
+            println("Не требуется обновление разделов форума")
+            updateHighPriority()
+            return
+        }
+        keeperRetrofit.catForumTree().enqueue(object : Callback<ForumTree> {
+            override fun onResponse(call: Call<ForumTree>, response: Response<ForumTree>) {
+                val forumTree = response.body()!!
+
+                keeperRetrofit.forumSize().enqueue(object : Callback<ForumSize> {
+                    override fun onResponse(call: Call<ForumSize>, response: Response<ForumSize>) {
+                        val forumSize = response.body()!!
+                        // всё получили, создаём список
+                        val forumList = HashMap<Int, ForumItem>()
+                        for (category in forumTree.result.tree) {
+                            for (forum in category.value) {
+                                // добавляем большой форум если есть раздачи
+                                forumSize.result[forum.key]?.let {
+                                    forumList.put(
+                                        forum.key, ForumItem(
+                                            "${forumTree.result.categories[category.key]} »" +
+                                                    " ${forumTree.result.forums[forum.key]}",
+                                            it[0],
+                                            it[1]
+                                        )
+                                    )
+                                }
+                                for (subForum in forum.value) {
+                                    // добавляем подфорум если есть раздачи
+                                    forumSize.result[subForum]?.let {
+                                        forumList.put(
+                                            subForum, ForumItem(
+                                                "${forumTree.result.categories[category.key]} »" +
+                                                        " ${forumTree.result.forums[forum.key]} »" +
+                                                        " ${forumTree.result.forums[subForum]}",
+                                                it[0],
+                                                it[1]
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        // обновляем БД
+                        // FIXME: 04.11.2022 здесь была ошибка блокировки БД
+                        TorrentRepository.updateForums(forumList)
+                        println("Список разделов форума успешно обновлён")
+                        updateHighPriority()
+                    }
+
+                    override fun onFailure(call: Call<ForumSize>, t: Throwable) {
+                        t.printStackTrace()
+                        updateForumButton.isEnabled = true
+                    }
+                })
+            }
+
+            override fun onFailure(call: Call<ForumTree>, t: Throwable) {
+                t.printStackTrace()
+                updateForumButton.isEnabled = true
+            }
+        })
+    }
+
+    fun updateHighPriority() {
+        // TODO: 03.11.2022 получать высокоприоритетные раздачи
+        // TODO: 03.11.2022 узнать как прилеплять хранителей к высокоприоритеткам
+
+        if (!TorrentRepository.shouldUpdateHighPriority()) {
+            println("Не требуется обновление высокоприоритетных раздач")
+            updateSubsections()
+            return
+        }
+        println("Обновление высокоприоритетных раздач требуется, но не реализовано")
+        updateSubsections()
+
+    }
+
+    fun updateSubsections() {
+        // TODO: 04.11.2022 ускорить процесс обновления раздач, если база уже загружена
+        keeperRetrofit.keepersUserData().enqueue(object : Callback<ForumKeepers> {
+            override fun onResponse(call: Call<ForumKeepers>, response: Response<ForumKeepers>) {
+                val keepersMap = response.body()!!
+                val subsections =
+                    Settings.node("sections")["subsections", ""].unquote()?.split(',') ?: emptyList<String>()
+                val torrentStatus = arrayOf(0, 2, 3, 8, 10)
+                val updateTorrentsThread = Thread {
+                    for (subsection in subsections) {
+                        if (!TorrentRepository.shouldUpdate(subsection.toInt())) {
+                            println("Notice: Не требуется обновление для подраздела № $subsection")
+                            continue
+                        }
+                        try {
+                            val limit = keeperRetrofit.getLimit().execute().body()!!.limit
+                            val topicResult =
+                                keeperRetrofit.getForumTorrents(subsection.toInt()).execute().body()!!.result
+                            val topicsToQuery = ArrayList<Int>()
+                            val updatedTopics = HashSet<DbTopic>()
+                            val newTopics = HashSet<DbTopic>()
+                            for (topicInfoEntry in topicResult) {
+                                val topicInfo = topicInfoEntry.value
+                                if (topicInfo.size < 6) {
+                                    throw Exception("Error: Недостаточно элементов в ответе")
+                                }
+                                if (!torrentStatus.contains(topicInfo[0])) {
+                                    continue
+                                }
+                                // TODO: 03.11.2022 обрабатывать перерегистрацию и другие частные случаи
+                                // TODO: 03.11.2022 обновлять сидов-хранителей
+                                topicsToQuery.add(topicInfoEntry.key)
+                                if (topicsToQuery.size == limit) {
+                                    val topicsData =
+                                        keeperRetrofit.getTorrentTopicsData(topicsToQuery.joinToString(","))
+                                            .execute().body()!!.result
+                                    val existingIds = TorrentRepository.getTopicsByIds(topicsToQuery)
+                                    topicsToQuery.clear()
+                                    for (topicDataItem in topicsData) {
+                                        val topicData = topicDataItem.value ?: continue
+
+                                        if (topicDataItem.key in existingIds.keys) {
+                                            // раздача уже есть в таблице, её нужно обновить
+                                            if (topicData.infoHash == existingIds[topicDataItem.key]) {
+                                                // у раздачи сменился хэш, надо будет это как-то пометить
+                                            }
+                                            updatedTopics.add(
+                                                DbTopic(
+                                                    topicDataItem.key,
+                                                    topicData.forumId,
+                                                    topicData.topicTitle,
+                                                    topicData.infoHash,
+                                                    topicData.seeders,
+                                                    topicData.size,
+                                                    topicData.torStatus,
+                                                    topicData.regTime,
+                                                    1,
+                                                    0,
+                                                    topicInfo[4] as Int
+                                                )
+                                            )
+                                        } else {
+                                            // добавляем новую раздачу
+
+                                            // topicData - то что есть на форуме
+                                            // topicInfo - хранительская инфа
+                                            newTopics.add(
+                                                DbTopic(
+                                                    topicDataItem.key,
+                                                    topicData.forumId,
+                                                    topicData.topicTitle,
+                                                    topicData.infoHash,
+                                                    topicData.seeders,
+                                                    topicData.size,
+                                                    topicData.torStatus,
+                                                    topicData.regTime,
+                                                    1,
+                                                    0,
+                                                    topicInfo[4] as Int
+                                                    )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            // TODO: 04.11.2022 изучить, сколько максимум торрентов в подразделе
+                            TorrentRepository.appendUpdatedTopics(updatedTopics)
+                            TorrentRepository.appendNewTopics(newTopics)
+                            updatedTopics.clear()
+                            newTopics.clear()
+                            TorrentRepository.commitTopics()
+                            println("Обновление подраздела $subsection успешно завершено")
+                        } catch (e: Exception) {
+                            System.err.println("Error: Не получены данные о подразделе № $subsection")
+                            e.printStackTrace()
+                        }
+                    }
+                }.start()
+            }
+
+            override fun onFailure(call: Call<ForumKeepers>, p1: Throwable) {
+            }
+        })
     }
 
     fun resetFilter() {

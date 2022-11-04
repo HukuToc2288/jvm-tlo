@@ -2,8 +2,8 @@ package api
 
 import entities.keeper.*
 import retrofit2.Call
-import okhttp3.Response
 import retrofit2.http.GET
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface KeeperApi {
@@ -13,4 +13,16 @@ interface KeeperApi {
 
     @GET("v1/static/forum_size")
     fun forumSize(): Call<ForumSize>
+
+    @GET("v1/static/keepers_user_data")
+    fun keepersUserData(): Call<ForumKeepers>
+
+    @GET("v1/static/pvc/f/{forum_id}")
+    fun getForumTorrents(@Path("forum_id") forumId: Int): Call<ForumTopicsInfo>
+
+    @GET("v1/get_limit")
+    fun getLimit(): Call<ForumLimit>
+
+    @GET("v1/get_tor_topic_data")
+    fun getTorrentTopicsData(@Query("val") topics: String,@Query("by") by: String = "topic_id"): Call<ForumTorrentTopicsData>
 }
