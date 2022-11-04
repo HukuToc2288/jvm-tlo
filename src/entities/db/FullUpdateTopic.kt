@@ -1,6 +1,6 @@
 package entities.db
 
-class DbTopic(
+class FullUpdateTopic(
     val id: Int,
     val forumId: Int,
     val title: String,
