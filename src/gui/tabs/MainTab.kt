@@ -2,18 +2,14 @@ package gui.tabs
 
 import api.keeperRetrofit
 import db.TorrentRepository
-import entities.db.FullUpdateTopic
 import entities.db.ForumItem
 import entities.db.KeeperItem
-import entities.db.SeedsUpdateTopic
-import entities.keeper.ForumKeepers
 import entities.keeper.ForumSize
 import entities.keeper.ForumTree
-import gui.UpdateDialog
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import tasks.UpdateTopicsDialog
+import gui.operations.UpdateTopicsDialog
 import utils.*
 import java.awt.*
 import java.text.SimpleDateFormat
@@ -25,7 +21,6 @@ import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
-import kotlin.collections.HashSet
 
 
 class MainTab : JPanel(GridBagLayout()) {

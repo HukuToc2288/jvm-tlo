@@ -259,7 +259,7 @@ object TorrentRepository {
         insertTempStatement.executeBatch()
     }
 
-    fun commitTopics(forumId: Int) {
+    fun commitTopics(forumId: Int, deleteOther: Boolean) {
         connection.autoCommit = true
 
         // делаем всё как с обновлением дерева форумов
@@ -275,17 +275,18 @@ object TorrentRepository {
                         " SELECT id,ss,na,hs,se,si,st,rg,qt,ds,pt FROM temp.TopicsNew"
             )
 
-        connection.createStatement().execute(
-            "DELETE FROM Topics WHERE Topics.ss = $forumId AND id IN (" +
-                    " SELECT Topics.id FROM Topics" +
-                    " LEFT JOIN temp.TopicsUpdated ON Topics.id = temp.TopicsUpdated.id" +
-                    " LEFT JOIN temp.TopicsNew ON Topics.id = temp.TopicsNew.id"+
-                    " WHERE temp.TopicsUpdated.id IS NULL AND temp.TopicsNew.id IS NULL)"
-        )
+        if (deleteOther) {
+            connection.createStatement().execute(
+                "DELETE FROM Topics WHERE Topics.ss = $forumId AND id IN (" +
+                        " SELECT Topics.id FROM Topics" +
+                        " LEFT JOIN temp.TopicsUpdated ON Topics.id = temp.TopicsUpdated.id" +
+                        " LEFT JOIN temp.TopicsNew ON Topics.id = temp.TopicsNew.id" +
+                        " WHERE temp.TopicsUpdated.id IS NULL AND temp.TopicsNew.id IS NULL)"
+            )
+        }
 
         connection.createStatement().execute("DROP TABLE temp.TopicsUpdated")
         connection.createStatement().execute("DROP TABLE temp.TopicsNew")
-
     }
 
     fun getTopicsByIds(ids: List<Int>): Map<Int, String> {
