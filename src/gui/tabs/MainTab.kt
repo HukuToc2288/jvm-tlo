@@ -21,6 +21,9 @@ import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import javax.swing.SwingUtilities
+
+import javax.swing.JFrame
 
 
 class MainTab : JPanel(GridBagLayout()) {
@@ -59,10 +62,13 @@ class MainTab : JPanel(GridBagLayout()) {
     }
 
     val updateForumButton = buildControlButton("death", "Обновить сведения") {
-        val updateForumDialog = UpdateTopicsDialog(SwingUtilities.getWindowAncestor(this) as Frame?)
-        updateForumDialog.executeTask()
-        updateForumDialog.isVisible = true
+        val updateForumResult = UpdateTopicsDialog(
+            SwingUtilities.getWindowAncestor(this@MainTab) as JFrame
+        ).executeTask()
+        println(updateForumResult)
+        queryAndUpdateTable()
     }
+
     // Первый фильтр
     val keepCheckbox = buildFilterCheckbox("храню")
     val noKeepCheckbox = buildFilterCheckbox("не храню")
@@ -656,7 +662,7 @@ class MainTab : JPanel(GridBagLayout()) {
                         // FIXME: 04.11.2022 здесь была ошибка блокировки БД
                         TorrentRepository.updateForums(forumList)
                         println("Список разделов форума успешно обновлён")
-                       // updateHighPriority()
+                        // updateHighPriority()
                     }
 
                     override fun onFailure(call: Call<ForumSize>, t: Throwable) {
@@ -686,7 +692,6 @@ class MainTab : JPanel(GridBagLayout()) {
 //        updateSubsections()
 //
 //    }
-
 
 
     fun resetFilter() {

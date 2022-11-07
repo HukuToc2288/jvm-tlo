@@ -16,7 +16,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
 
     private val fullTextFormat = "Обработано %s из %s подразделов"
 
-    override fun executeTask() {
+    override fun doTask() {
         updateSubsections()
     }
 
@@ -121,7 +121,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                         e.printStackTrace()
                     }
                 }
-                onTaskCompleted()
+                onTaskSuccess()
             } catch (e: Exception) {
                 e.printStackTrace()
                 onTaskFailed()

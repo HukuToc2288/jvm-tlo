@@ -2,8 +2,12 @@ package gui.operations
 
 import java.awt.*
 import java.awt.event.ActionListener
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import javax.swing.*
 import javax.swing.border.EmptyBorder
+import javax.swing.JOptionPane
+
 
 abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(frame, title, true) {
 
@@ -28,18 +32,24 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
     private val cancelButton: JButton = JButton("Остановить")
 
     private val cancelListener = ActionListener {
-        cancelButton.isEnabled = false
-        taskCancelRequested = true
-        cancelButton.text = "Остановка..."
+        showCancellationDialog()
     }
 
-    private val closeListener = ActionListener{
+    private val closeListener = ActionListener {
         dispose()
     }
 
     private val statusText = JLabel()
 
     private var taskCancelRequested = false
+
+    private val windowCloseListener = object : WindowAdapter() {
+        override fun windowClosing(windowEvent: WindowEvent) {
+            showCancellationDialog()
+        }
+    }
+
+    private lateinit var result: Result
 
     init {
         defaultCloseOperation = DO_NOTHING_ON_CLOSE
@@ -49,9 +59,36 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         size = preferredSize
         isResizable = false
         cancelButton.addActionListener(cancelListener)
+        addWindowListener(windowCloseListener)
+        setLocationRelativeTo(frame)
     }
 
-    abstract fun executeTask()
+    private fun showCancellationDialog() {
+        if (JOptionPane.showConfirmDialog(
+                this,
+                "Отменить операцию?\nПрогресс может быть частично или полностью потерян",
+                "",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+            ) == JOptionPane.YES_OPTION
+        ) {
+            removeWindowListener(windowCloseListener)
+            cancelButton.isEnabled = false
+            taskCancelRequested = true
+            cancelButton.text = "Остановка..."
+        }
+    }
+
+    // Этот метод заблокирует поток, из которого будет вызван (и правильно сделает)
+    fun executeTask(): Result {
+        SwingUtilities.invokeLater {
+            doTask()
+        }
+        isVisible = true
+        return result
+    }
+
+    abstract fun doTask()
 
     /**
      * Проверяет, была ли запрошена отмена операции (нажата кнопка Остановить)
@@ -61,8 +98,8 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
      *
      * Работа с локальной БД в общем случае не считается долгой подзадачей
      */
-    fun cancelTaskIfRequested(finalize: () ->Unit): Boolean{
-        if (taskCancelRequested){
+    fun cancelTaskIfRequested(finalize: () -> Unit): Boolean {
+        if (taskCancelRequested) {
             finalize.invoke()
             onTaskCancelled()
             return true
@@ -73,8 +110,9 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
     /**
      * Вызывается после того, как задача была успешно завершена
      */
-    fun onTaskCompleted() {
+    fun onTaskSuccess() {
         dispose()
+        result = Result.SUCCESS
     }
 
     /**
@@ -89,11 +127,13 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         cancelButton.removeActionListener(cancelListener)
         cancelButton.addActionListener(closeListener)
         cancelButton.isEnabled = true
+        result = Result.FAILED
     }
+
     /**
      * Вызывается после того, как операция была отменена и выполнена соответствующая функция
      */
-    fun onTaskCancelled() {
+    private fun onTaskCancelled() {
         statusText.text = "Операция отменена"
         statusText.foreground = Color.YELLOW
         defaultCloseOperation = DISPOSE_ON_CLOSE
@@ -101,6 +141,7 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         cancelButton.removeActionListener(cancelListener)
         cancelButton.addActionListener(closeListener)
         cancelButton.isEnabled = true
+        result = Result.CANCELLED
     }
 
     private fun buildGui() {
@@ -125,7 +166,6 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
 
         constraints.gridwidth = 1
         constraints.gridy = 5
-        add(statusText, constraints)
         constraints.fill = GridBagConstraints.NONE
         constraints.anchor = GridBagConstraints.EAST
         add(statusText, constraints)
@@ -135,19 +175,19 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         add(cancelButton, constraints)
     }
 
-    public fun setCurrentText(text: String) {
+    fun setCurrentText(text: String) {
         currentText.text = text
         minimumSize = size
     }
 
 
-    public fun setFullText(text: String) {
+    fun setFullText(text: String) {
         fullText.text = text
         minimumSize = size
     }
 
 
-    public fun setCurrentProgress(newValue: Int, newMaximum: Int = -1) {
+    fun setCurrentProgress(newValue: Int, newMaximum: Int = -1) {
         with(currentProgress) {
             isIndeterminate = value < 0
             if (newMaximum >= 0)
@@ -157,12 +197,16 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
     }
 
 
-    public fun setFullProgress(newValue: Int, newMaximum: Int = -1) {
+    fun setFullProgress(newValue: Int, newMaximum: Int = -1) {
         with(fullProgress) {
             isIndeterminate = value < 0
             if (newMaximum >= 0)
                 maximum = newMaximum
             value = newValue
         }
+    }
+
+    enum class Result {
+        SUCCESS, FAILED, CANCELLED
     }
 }
