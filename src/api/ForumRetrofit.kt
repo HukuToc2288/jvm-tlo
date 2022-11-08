@@ -1,13 +1,9 @@
 package api
 
-import okhttp3.Cookie
-import okhttp3.CookieJar
-import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.jackson.JacksonConverterFactory
-import retrofit2.converter.scalars.ScalarsConverterFactory
 import utils.Settings
 import utils.unquote
 import java.net.InetSocketAddress
@@ -17,7 +13,7 @@ import java.util.*
 // TODO: 03.11.2022 SOCKS4 прокси не работают, и с большой вероятностью не работают HTTPS
 // TODO: 03.11.2022 прокси с авторизацией
 
-val forumCookieJar = SimpleCookieJar()
+val forumCookieJar = SingleUrlCookieJar()
 
 var forumRetrofit = createForumApi()
     private set
