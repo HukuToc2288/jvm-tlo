@@ -84,7 +84,9 @@ class MainTab : JPanel(GridBagLayout()) {
     }
 
     val testButton = buildControlButton("test", "Для теста разных функций") {
-        println(testQbittorrent.version())
+        testQbittorrent.auth()
+        val torrents = testQbittorrent.getTorrents()
+        println(torrents.size)
     }
 
     // Первый фильтр

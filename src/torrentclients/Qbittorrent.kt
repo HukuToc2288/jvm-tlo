@@ -4,12 +4,14 @@ import api.*
 import api.torrentclients.QbittorrentApi
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
+import entities.torrentclient.TorrentClientTorrent
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.jackson.JacksonConverterFactory
 import retrofit2.converter.scalars.ScalarsConverterFactory
 import utils.TorrentClientException
+import java.util.concurrent.TimeUnit
 
 // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)
 class Qbittorrent(
@@ -31,7 +33,9 @@ class Qbittorrent(
         .client(
             OkHttpClient.Builder()
                 .addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BASIC))
-                .cookieJar(cookieJar).build()
+                .cookieJar(cookieJar)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .build()
         )
         .build()
         .create(QbittorrentApi::class.java)
@@ -50,14 +54,37 @@ class Qbittorrent(
             auth()  // нет сессии
         val response = api.version().execute()
         if (response.code() != 200) {
-            if (response.code() == 403) {
-                // сессия протухла
-                auth()
-                return version()
-            } else {
-                throw TorrentClientException("Ошибка ${response.code()}: ${response.body()}")
-            }
+            throw TorrentClientException("Ошибка ${response.code()}: ${response.body()}")
         }
         return response.body().toString()
+    }
+
+    override fun getTorrents(): List<TorrentClientTorrent> {
+        val response = api.getTorrents().execute()
+        if (response.code() != 200)
+            throw TorrentClientException("Ошибка ${response.code()}: ${response.body()}")
+        val torrentsFromClient = response.body()!!
+        val torrentList = List(torrentsFromClient.size) {
+            val torrent = torrentsFromClient[it]
+            TorrentClientTorrent(
+                torrent.hash,
+                torrent.amountLeft == 0L,
+                TorrentClientTorrent.TOPIC_NEED_QUERY
+            )
+        }
+        return torrentList
+    }
+
+    override fun getTorrentTopicId(hash: String): Int {
+        val response = api.getTorrentProperties(hash).execute()
+        if (response.code() != 200)
+            throw TorrentClientException("Ошибка ${response.code()}: ${response.body()}")
+        val comment = response.body()!!.comment
+        val found = rutrackerCommentRegex.find(comment) ?: return TorrentClientTorrent.TOPIC_THIRD_PARTY
+        return try {
+            comment.substring(found.range.last).toInt()
+        } catch (e: NumberFormatException) {
+            TorrentClientTorrent.TOPIC_THIRD_PARTY
+        }
     }
 }

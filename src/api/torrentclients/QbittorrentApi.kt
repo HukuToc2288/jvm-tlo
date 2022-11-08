@@ -1,6 +1,8 @@
 package api.torrentclients
 
 
+import entities.torrentclient.QbittorrentInfoEntry
+import entities.torrentclient.QbittorrentTorrentProperties
 import retrofit2.Call
 import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded
@@ -15,4 +17,10 @@ interface QbittorrentApi {
 
     @GET("v2/app/version")
     fun version(): Call<String>
+
+    @GET("v2/torrents/info")
+    fun getTorrents(): Call<List<QbittorrentInfoEntry>>
+
+    @GET("v2/torrents/properties")
+    fun getTorrentProperties(hash: String): Call<QbittorrentTorrentProperties>
 }
