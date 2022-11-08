@@ -3,7 +3,7 @@ package api
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.jackson.JacksonConverterFactory
+import retrofit2.converter.scalars.ScalarsConverterFactory
 import utils.Settings
 import utils.unquote
 import java.net.InetSocketAddress
@@ -44,7 +44,7 @@ private fun createForumApi(): ForumApi {
     }
     return Retrofit.Builder()
         .baseUrl("https://rutracker.org/forum/")
-        .addConverterFactory(JacksonConverterFactory.create())
+        .addConverterFactory(ScalarsConverterFactory.create())
         .client(clientBuildr.build())
         .build()
         .create(ForumApi::class.java)

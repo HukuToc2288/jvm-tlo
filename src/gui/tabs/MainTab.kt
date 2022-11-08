@@ -10,6 +10,7 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import gui.operations.UpdateTopicsDialog
+import torrentclients.Qbittorrent
 import utils.*
 import java.awt.*
 import java.text.SimpleDateFormat
@@ -61,12 +62,29 @@ class MainTab : JPanel(GridBagLayout()) {
         }
     }
 
-    val updateForumButton = buildControlButton("death", "Обновить сведения") {
+    val testQbittorrent = buildTestQbittorrent()
+
+    private fun buildTestQbittorrent(): Qbittorrent{
+        Settings.node("torrent-client-1").let{
+            return Qbittorrent(
+                it["hostname","localhost"].unquote()+":"+it["port","8080"].unquote(),
+                it["ssl","0"].unquote() == "1",
+                it["login","admin"].unquote()!!,
+                it["password","adminadmin"].unquote()!!,
+            )
+        }
+    }
+
+    val updateForumButton = buildControlButton("refresh", "Обновить сведения") {
         val updateForumResult = UpdateTopicsDialog(
             SwingUtilities.getWindowAncestor(this@MainTab) as JFrame
         ).executeTask()
         println(updateForumResult)
         queryAndUpdateTable()
+    }
+
+    val testButton = buildControlButton("test", "Для теста разных функций") {
+        println(testQbittorrent.version())
     }
 
     // Первый фильтр
@@ -308,6 +326,8 @@ class MainTab : JPanel(GridBagLayout()) {
         container.add(invertSelectionButton)
         container.add(Box.createHorizontalStrut(10))
         container.add(updateForumButton)
+        container.add(Box.createHorizontalStrut(10))
+        container.add(testButton)
         return container
     }
 
