@@ -11,6 +11,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.jackson.JacksonConverterFactory
 import retrofit2.converter.scalars.ScalarsConverterFactory
 import utils.TorrentClientException
+import java.util.*
 import java.util.concurrent.TimeUnit
 
 // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)
@@ -67,7 +68,7 @@ class Qbittorrent(
         val torrentList = List(torrentsFromClient.size) {
             val torrent = torrentsFromClient[it]
             TorrentClientTorrent(
-                torrent.hash,
+                torrent.hash.uppercase(Locale.US),
                 torrent.amountLeft == 0L,
                 TorrentClientTorrent.TOPIC_NEED_QUERY
             )
@@ -82,7 +83,7 @@ class Qbittorrent(
         val comment = response.body()!!.comment
         val found = rutrackerCommentRegex.find(comment) ?: return TorrentClientTorrent.TOPIC_THIRD_PARTY
         return try {
-            comment.substring(found.range.last).toInt()
+            comment.substring(found.range.last+1).toInt()
         } catch (e: NumberFormatException) {
             TorrentClientTorrent.TOPIC_THIRD_PARTY
         }

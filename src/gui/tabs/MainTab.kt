@@ -6,6 +6,7 @@ import entities.db.ForumItem
 import entities.db.KeeperItem
 import entities.keeper.ForumSize
 import entities.keeper.ForumTree
+import entities.torrentclient.TorrentClientTorrent
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -25,6 +26,7 @@ import kotlin.collections.HashMap
 import javax.swing.SwingUtilities
 
 import javax.swing.JFrame
+import kotlin.math.min
 
 
 class MainTab : JPanel(GridBagLayout()) {
@@ -64,13 +66,13 @@ class MainTab : JPanel(GridBagLayout()) {
 
     val testQbittorrent = buildTestQbittorrent()
 
-    private fun buildTestQbittorrent(): Qbittorrent{
-        Settings.node("torrent-client-1").let{
+    private fun buildTestQbittorrent(): Qbittorrent {
+        Settings.node("torrent-client-1").let {
             return Qbittorrent(
-                it["hostname","localhost"].unquote()+":"+it["port","8080"].unquote(),
-                it["ssl","0"].unquote() == "1",
-                it["login","admin"].unquote()!!,
-                it["password","adminadmin"].unquote()!!,
+                it["hostname", "localhost"].unquote() + ":" + it["port", "8080"].unquote(),
+                it["ssl", "0"].unquote() == "1",
+                it["login", "admin"].unquote()!!,
+                it["password", "adminadmin"].unquote()!!,
             )
         }
     }
@@ -86,7 +88,62 @@ class MainTab : JPanel(GridBagLayout()) {
     val testButton = buildControlButton("test", "Для теста разных функций") {
         testQbittorrent.auth()
         val torrents = testQbittorrent.getTorrents()
-        println(torrents.size)
+        // TODO: 10.11.2022 проверить что все количества везде нормально сходятся
+        TorrentRepository.createTorrentsFromClient()
+        val rutrackerTopicsFromClient = ArrayList<TorrentClientTorrent>()
+        // берём пачками, т.к. от нескольких десятков тысяч торрентов может кончиться память
+        val packSize = 1000
+        for (i in torrents.indices step packSize) {
+            val topicsFromDb = TorrentRepository.getTopicsByHashes(torrents, i, packSize)
+            val currentTorrentsCount = min(torrents.size - i, packSize)
+            var countDiff = currentTorrentsCount - topicsFromDb.size
+            for (j in i until i + currentTorrentsCount) {
+                // если нашли все хэши, которых нет в БД, можно добавить остатки в список не проверяя
+                if (countDiff == 0) {
+                    println(i + currentTorrentsCount - j)
+                    TorrentRepository.appendTorrentsFromClient(torrents, j,i + currentTorrentsCount)
+                    break
+                }
+                val currentTorrent = torrents[j]
+                // проверяем хэши
+                if (currentTorrent.hash !in topicsFromDb.values) {
+                    countDiff--
+                    // хэша нет в таблице, попробуем найти по теме
+                    if (currentTorrent.topicId == TorrentClientTorrent.TOPIC_NEED_QUERY) {
+                        // запрашиваем тему если её нет
+                        currentTorrent.topicId = testQbittorrent.getTorrentTopicId(currentTorrent.hash)
+                    }
+                    if (currentTorrent.topicId != TorrentClientTorrent.TOPIC_THIRD_PARTY) {
+                        // тема есть, а хэши не совпадают
+                        // обновлённая раздача, догадался штирлиц
+                        // TODO: 09.11.2022 для них нужна отдельная таблица или флаг
+                        // TODO: 09.11.2022 обработка случая, когда раздача закрыта
+                    } else {
+                        // тема не с рутрекера
+                        // TODO: 10.11.2022 и что с ней делать?
+                    }
+                } else {
+                    // хэш есть, всё окей
+                    rutrackerTopicsFromClient.add(currentTorrent)
+                }
+            }
+            TorrentRepository.appendTorrentsFromClient(rutrackerTopicsFromClient)
+            rutrackerTopicsFromClient.clear()
+        }
+        TorrentRepository.commitTorrentsFromClient(1)
+        // TODO: 09.11.2022 сделать следующее:
+        // получаем:
+        // - торренты из клиента
+        // - торренты из базы (зачем?)
+        // - темы из базы
+        // смотрим есть ли хэш в Topics
+        // если есть, то
+        // с торрентом всё ок
+        // если нет, пытаемся получить id темы
+        // если не получили, значит раздача не с рутрекера
+        // если получили, то проверяем, есть ли такая тема
+        // если есть, то раздача обновлена и с этим надо что-то делать
+        // если нет, то раздача удалена?
     }
 
     // Первый фильтр

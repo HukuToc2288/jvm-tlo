@@ -1,10 +1,14 @@
 package db
 
 import entities.db.*
+import entities.torrentclient.TorrentClientTorrent
 import utils.TorrentFilterCriteria
+import java.lang.StringBuilder
 import java.sql.DriverManager
 import java.util.*
 import kotlin.collections.HashMap
+import kotlin.math.max
+import kotlin.math.min
 
 
 object TorrentRepository {
@@ -201,7 +205,7 @@ object TorrentRepository {
                     " LEFT JOIN temp.ForumsNew ON Forums.id = temp.ForumsNew.id" +
                     " WHERE temp.ForumsNew.id IS NULL)"
         )
-        connection.createStatement().execute("DROP TABLE ForumsNew")
+        connection.createStatement().execute("DROP TABLE temp.ForumsNew")
         connection.createStatement()
             .execute("INSERT INTO UpdateTime(id,ud) VALUES (8888,${(System.currentTimeMillis()).toInt()})")
     }
@@ -301,6 +305,33 @@ object TorrentRepository {
         return existingIds
     }
 
+    fun getTopicsByHashes(
+        torrents: List<TorrentClientTorrent>,
+        offset: Int = 0,
+        limit: Int = Int.MAX_VALUE
+    ): Map<Int, String> {
+        connection.autoCommit = true
+        // 40-bytes hash + quotes + comma
+        val hashesStringBuilder = StringBuilder((limit) * 43)
+        val endIndex = min(offset + limit, torrents.size - 1)
+        for (i in offset..endIndex) {
+            hashesStringBuilder.append(torrents[i].hash)
+            if (i != endIndex)
+                hashesStringBuilder.append("','")
+        }
+        val query = "SELECT id,hs FROM Topics" +
+                " WHERE hs COLLATE NOCASE IN ('$hashesStringBuilder')"
+        println(query)
+        val resultSet = connection.createStatement().executeQuery(
+            query
+        )
+        val existingHashes = HashMap<Int, String>()
+        while (resultSet.next()) {
+            existingHashes[resultSet.getInt("id")] = resultSet.getString("hs")
+        }
+        return existingHashes
+    }
+
     fun getTopicsRegistrationDate(forumId: Int): Map<Int, Int> {
         val datesResult = connection.createStatement().executeQuery("SELECT id,rg FROM Topics WHERE ss = $forumId")
         val datesMap = HashMap<Int, Int>()
@@ -315,5 +346,54 @@ object TorrentRepository {
             "DELETE FROM Topics" +
                     " WHERE ss = forumId AND id NOT IN (${topics.keys.joinToString(",")})"
         )
+    }
+
+    fun getTorrentsFromClient(clientId: Int): Map<String, Boolean> {
+        val torrentsResult = connection.createStatement().executeQuery("SELECT hs,dl FROM Clients WHERE cl=$clientId")
+        val torrentsMap = HashMap<String, Boolean>()
+        while (torrentsResult.next()) {
+            torrentsMap[torrentsResult.getString(1)] = torrentsResult.getInt(2) == 1
+        }
+        return torrentsMap
+    }
+
+    fun createTorrentsFromClient() {
+        connection.createStatement().execute(
+            "CREATE TEMPORARY TABLE ClientsNew AS" +
+                    " SELECT hs,dl FROM Clients WHERE 0 = 1"
+        )
+        connection.autoCommit = false
+    }
+
+    fun appendTorrentsFromClient(torrents: List<TorrentClientTorrent>, start: Int = 0, end: Int = torrents.size) {
+        if (torrents.isEmpty())
+            return
+        connection.autoCommit = false
+        val insertTempStatement =
+            connection.prepareStatement(
+                "INSERT INTO temp.ClientsNew (hs,dl)" +
+                        " VALUES (?,?)"
+            )
+        for (i in start until end) {
+            val torrent = torrents[i]
+            insertTempStatement.setString(1, torrent.hash)
+            insertTempStatement.setInt(2, if (torrent.completed) 1 else 0)
+            insertTempStatement.addBatch()
+        }
+        insertTempStatement.executeBatch()
+    }
+
+    fun commitTorrentsFromClient(clientId: Int) {
+        connection.autoCommit = true
+        connection.createStatement()
+            .execute("INSERT INTO Clients (hs,cl,dl) SELECT hs,$clientId as cl,dl FROM temp.ClientsNew")
+
+//        connection.createStatement().execute(
+//            "DELETE FROM Clients WHERE Clients.cl == $clientId AND hs IN (" +
+//                    " SELECT Clients.hs FROM Clients" +
+//                    " LEFT JOIN temp.ClientsNew ON Clients.hs = temp.ClientsNew.hs" +
+//                    " WHERE temp.ClientsNew.hs IS NULL)"
+//        )
+        connection.createStatement().execute("DROP TABLE temp.ClientsNew")
     }
 }
