@@ -11,6 +11,9 @@ import utils.unquote
 import java.awt.Frame
 import kotlin.math.min
 
+import java.util.HashSet
+
+
 class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновление списка раздач") {
 
 
@@ -18,6 +21,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         val updateTorrentsThread = Thread {
             updateSubsections()
             updateTopicsFromClient()
+            if (!cancelTaskIfRequested {  })
             onTaskSuccess()
         }
         updateTorrentsThread.start()
@@ -153,7 +157,6 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
     fun updateTopicsFromClient() {
         // TODO: 11.11.2022 всё вроде работает, но очень странно, что вот так наскоком всё получилось
         //  проверить, что точно всё правильно, и никакие пограничные случаи не пропущены
-        //  полоса прогресса не доходит до конца, с большой вероятностью теряется часть раздач
 
         val torrentClients = Settings.getTorrentClients()
         TorrentRepository.createTempUntrackedTopics()
@@ -178,7 +181,10 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             setCurrentProgress(0, torrents.size)
             TorrentRepository.createTempClients()
             val rutrackerTopicsFromClient = ArrayList<TorrentClientTorrent>()
-            val noDbTopics = HashMap<Int, String>()
+            // мапа "перевёрнута", т.к. может быть несколько раздач с одной темой, но разными хэшами
+            // если конечно господин не использовал эту замечательную программу для поиска обновлённых раздач
+            // FIXME: 12.11.2022 в идеале здесь нужна структура, нормально работающая в обе стороны
+            val noDbTopics = HashMap<String, Int>()
             val untrackedTopicsIds = ArrayList<Int>()
             val updatedTopicsHashes = HashMap<String, String>()    // старый и новый хэши
             val keepingSubsectionsString = Settings.node("sections")["subsections", ""].unquote()
@@ -208,7 +214,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                         }
                         if (currentTorrent.topicId != TorrentClientTorrent.TOPIC_THIRD_PARTY) {
                             // комментарий содержит тему, но хэша нет в базе
-                            noDbTopics[currentTorrent.topicId] = currentTorrent.hash
+                            noDbTopics[currentTorrent.hash] = currentTorrent.topicId
 
                             // TODO: 09.11.2022 обработка случая, когда раздача закрыта
                         } else {
@@ -225,23 +231,26 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 if (noDbTopics.size == packSize || i + currentTorrentsCount == torrents.size && noDbTopics.isNotEmpty()) {
                     // хэши раздач, которые находятся в хранимых подразделах
                     val keepingUpdatedTopics = TorrentRepository.getTopicHashesByIdsInSubsections(
-                        noDbTopics.keys,
+                        noDbTopics.values,
                         keepingSubsectionsString
                     )
                     var noDbTopicsProcessed = 0
+                    var yes = 0
                     for (noDbTopicEntry in noDbTopics) {
-                        if (noDbTopicEntry.key in keepingUpdatedTopics.keys) {
+                        if (noDbTopicEntry.value in keepingUpdatedTopics.keys) {
                             // айдишник есть в хранимых подразделах, значит обновился хэш
                             // просто добавляем новый хэш в таблицу
-                            updatedTopicsHashes[noDbTopicEntry.value] = keepingUpdatedTopics[noDbTopicEntry.key]!!
+                            updatedTopicsHashes[noDbTopicEntry.key] = keepingUpdatedTopics[noDbTopicEntry.value]!!
                             incrementCurrentProgress()
+                            yes++
                         } else {
                             // айдишника нет в хранимых подразделах, значит из другого раздела
-                            untrackedTopicsIds.add(noDbTopicEntry.key)
+                            untrackedTopicsIds.add(noDbTopicEntry.value)
                             if (topicInfoRequestLimit < 0)
                                 topicInfoRequestLimit = keeperRetrofit.getLimit().execute().body()?.limit ?: 100
                         }
-                        if (untrackedTopicsIds.size == topicInfoRequestLimit || ++noDbTopicsProcessed == noDbTopics.size && untrackedTopicsIds.isNotEmpty()) {
+                        noDbTopicsProcessed++
+                        if (untrackedTopicsIds.size == topicInfoRequestLimit || noDbTopicsProcessed == noDbTopics.size && untrackedTopicsIds.isNotEmpty()) {
                             if (cancelTaskIfRequested {
                                     TorrentRepository.commitTorrentsFromClient(torrentClientItem.key, false)
                                     TorrentRepository.updateClientsUpdated(
@@ -254,18 +263,22 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                             val untrackedTopicsData =
                                 keeperRetrofit.getTorrentTopicsData(untrackedTopicsIds.joinToString(","))
                                     .execute().body()!!.result
-                            incrementCurrentProgress(untrackedTopicsIds.size)
-                            untrackedTopicsIds.clear()
                             TorrentRepository.appendUntrackedTopics(untrackedTopicsData)
                             for (untrackedTopic in untrackedTopicsData) {
-                                untrackedTopic.value?.infoHash?.let { untrackedTopicHash ->
-                                    noDbTopics[untrackedTopic.key]?.let { noDbTopicHash ->
-                                        if (noDbTopicHash != untrackedTopicHash)
-                                        // тема не только не отслеживается, но ещё и обновилась, ужас!
-                                            updatedTopicsHashes[noDbTopicHash] = untrackedTopicHash
+                                untrackedTopic.value?.forumId?.let { untrackedTopicId ->
+                                    val clientHashesOfTopics = noDbTopics.getKeysByValue(untrackedTopicId)
+                                    untrackedTopic.value?.infoHash?.let { untrackedTopicHash ->
+                                        for (clientHashOfTopic in clientHashesOfTopics) {
+                                            if (clientHashOfTopic != untrackedTopic.value?.infoHash) {
+                                                // тема не только не отслеживается, но ещё и обновилась, ужас!
+                                                updatedTopicsHashes[clientHashOfTopic] = untrackedTopicHash
+                                            }
+                                        }
                                     }
                                 }
                             }
+                            incrementCurrentProgress(untrackedTopicsIds.size)
+                            untrackedTopicsIds.clear()
                         }
                     }
                     noDbTopics.clear()
@@ -273,10 +286,19 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 TorrentRepository.appendTorrentsFromClient(rutrackerTopicsFromClient)
                 rutrackerTopicsFromClient.clear()
             }
-            // TODO: 11.11.2022 обрабатывать "хвосты", которые меньше размера пачки
             TorrentRepository.commitTorrentsFromClient(torrentClientItem.key, true)
             TorrentRepository.updateClientsUpdated(updatedTopicsHashes, torrentClientItem.key, true)
         }
         TorrentRepository.commitUntrackedTopics(true)
+    }
+
+    fun <T, E> Map<T, E>.getKeysByValue(value: E): Set<T> {
+        val keys: MutableSet<T> = HashSet()
+        for (entry in this) {
+            if (value == entry.value) {
+                keys.add(entry.key)
+            }
+        }
+        return keys
     }
 }

@@ -302,7 +302,7 @@ object TorrentRepository {
     }
 
     // достаём хэши, но только в нужных подразделах
-    fun getTopicHashesByIdsInSubsections(ids: Set<Int>, subsections: String): Map<Int, String> {
+    fun getTopicHashesByIdsInSubsections(ids: Collection<Int>, subsections: String): Map<Int, String> {
         val resultSet = connection.createStatement().executeQuery(
             "SELECT id,hs FROM Topics" +
                     " WHERE ss IN ($subsections)" +
@@ -322,10 +322,10 @@ object TorrentRepository {
     ): Map<Int, String> {
         // 40-bytes hash + quotes + comma
         val hashesStringBuilder = StringBuilder((limit) * 43)
-        val endIndex = min(offset + limit, torrents.size - 1)
-        for (i in offset..endIndex) {
+        val endIndex = min(offset + limit, torrents.size)
+        for (i in offset until endIndex) {
             hashesStringBuilder.append(torrents[i].hash)
-            if (i != endIndex)
+            if (i != endIndex-1)
                 hashesStringBuilder.append("','")
         }
         val query = "SELECT id,hs FROM Topics" +
