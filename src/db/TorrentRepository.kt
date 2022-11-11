@@ -182,7 +182,6 @@ object TorrentRepository {
         // TODO: 03.11.2022 process errors
         connection.createStatement()
             .execute("CREATE TEMPORARY TABLE ForumsNew AS SELECT id,na,qt,si FROM Forums LIMIT 0")
-        connection.autoCommit = false
         val insertTempStatement =
             connection.prepareStatement("INSERT INTO temp.ForumsNew (id,na,qt,si) VALUES (?,?,?,?)")
         for (forumItem in forumList) {
@@ -217,7 +216,6 @@ object TorrentRepository {
         )
         if (topics.isEmpty())
             return
-        connection.autoCommit = false
         val insertTempStatement =
             connection.prepareStatement(
                 "INSERT INTO temp.FullUpdateTopics (id,ss,na,hs,se,si,st,rg,qt,ds,pt)" +
@@ -247,7 +245,6 @@ object TorrentRepository {
         )
         if (topics.isEmpty())
             return
-        connection.autoCommit = false
         val insertTempStatement =
             connection.prepareStatement(
                 "INSERT INTO temp.SeedsUpdateTopics (id,se,qt,ds)" +
@@ -264,7 +261,6 @@ object TorrentRepository {
     }
 
     fun commitTopics(forumId: Int, deleteOther: Boolean) {
-        connection.autoCommit = true
 
         // делаем всё как с обновлением дерева форумов
         connection.createStatement()
@@ -324,7 +320,6 @@ object TorrentRepository {
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE
     ): Map<Int, String> {
-        connection.autoCommit = true
         // 40-bytes hash + quotes + comma
         val hashesStringBuilder = StringBuilder((limit) * 43)
         val endIndex = min(offset + limit, torrents.size - 1)
@@ -376,13 +371,11 @@ object TorrentRepository {
             "CREATE TEMPORARY TABLE ClientsNew AS" +
                     " SELECT hs,dl FROM Clients LIMIT 0"
         )
-        connection.autoCommit = false
     }
 
     fun appendTorrentsFromClient(torrents: List<TorrentClientTorrent>, start: Int = 0, end: Int = torrents.size) {
         if (torrents.isEmpty())
             return
-        connection.autoCommit = false
         val insertTempStatement =
             connection.prepareStatement(
                 "INSERT INTO temp.ClientsNew (hs,dl)" +
@@ -397,17 +390,17 @@ object TorrentRepository {
         insertTempStatement.executeBatch()
     }
 
-    fun commitTorrentsFromClient(clientId: Int) {
-        connection.autoCommit = true
+    fun commitTorrentsFromClient(clientId: Int, deleteOther: Boolean) {
         connection.createStatement()
             .execute("INSERT INTO Clients (hs,cl,dl) SELECT hs,$clientId as cl,dl FROM temp.ClientsNew")
 
-        connection.createStatement().execute(
-            "DELETE FROM Clients WHERE Clients.cl == $clientId AND hs IN (" +
-                    " SELECT Clients.hs FROM Clients" +
-                    " LEFT JOIN temp.ClientsNew ON Clients.hs = temp.ClientsNew.hs" +
-                    " WHERE temp.ClientsNew.hs IS NULL)"
-        )
+        if (deleteOther)
+            connection.createStatement().execute(
+                "DELETE FROM Clients WHERE Clients.cl == $clientId AND hs IN (" +
+                        " SELECT Clients.hs FROM Clients" +
+                        " LEFT JOIN temp.ClientsNew ON Clients.hs = temp.ClientsNew.hs" +
+                        " WHERE temp.ClientsNew.hs IS NULL)"
+            )
         connection.createStatement().execute("DROP TABLE temp.ClientsNew")
     }
 
@@ -417,48 +410,46 @@ object TorrentRepository {
             "CREATE TEMPORARY TABLE TopicsUntrackedNew AS" +
                     " SELECT id,ss,na,hs,se,si,st,rg FROM TopicsUntracked LIMIT 0"
         )
-        connection.autoCommit = false
     }
 
     fun appendUntrackedTopics(untrackedTopicsData: HashMap<Int, ForumTorrentTopicsData.TopicData?>) {
-        if (untrackedTopicsData.isEmpty())
-            return
-        connection.autoCommit = false
-        val statement = connection.prepareStatement(
-            "INSERT INTO temp.TopicsUntrackedNew (id,ss,na,hs,se,si,st,rg)" +
-                    " VALUES (?,?,?,?,?,?,?,?)"
-        )
-        for (untrackedTopicEntry in untrackedTopicsData) {
-            untrackedTopicEntry.value?.let { untrackedTopic ->
-                statement.setInt(1, untrackedTopicEntry.key)
-                statement.setInt(2, untrackedTopic.forumId)
-                statement.setString(3, untrackedTopic.topicTitle)
-                statement.setString(4, untrackedTopic.infoHash)
-                statement.setInt(5, untrackedTopic.seeders)
-                statement.setLong(6, untrackedTopic.size)
-                statement.setInt(7, untrackedTopic.torStatus)
-                statement.setInt(8, untrackedTopic.regTime)
-                statement.addBatch()
-            }
-        }
-        statement.executeBatch()
+//        if (untrackedTopicsData.isEmpty())
+//            return
+//        val statement = connection.prepareStatement(
+//            "INSERT INTO temp.TopicsUntrackedNew (id,ss,na,hs,se,si,st,rg)" +
+//                    " VALUES (?,?,?,?,?,?,?,?)"
+//        )
+//        for (untrackedTopicEntry in untrackedTopicsData) {
+//            untrackedTopicEntry.value?.let { untrackedTopic ->
+//                statement.setInt(1, untrackedTopicEntry.key)
+//                statement.setInt(2, untrackedTopic.forumId)
+//                statement.setString(3, untrackedTopic.topicTitle)
+//                statement.setString(4, untrackedTopic.infoHash)
+//                statement.setInt(5, untrackedTopic.seeders)
+//                statement.setLong(6, untrackedTopic.size)
+//                statement.setInt(7, untrackedTopic.torStatus)
+//                statement.setInt(8, untrackedTopic.regTime)
+//                statement.addBatch()
+//            }
+//        }
+//        statement.executeBatch()
     }
 
-    fun commitUntrackedTopics() {
-        connection.autoCommit = true
-        connection.createStatement()
-            .execute("INSERT INTO TopicsUntracked (id,ss,na,hs,se,si,st,rg) SELECT id,ss,na,hs,se,si,st,rg FROM temp.TopicsUntrackedNew")
-
-        connection.createStatement().execute(
-            "DELETE FROM TopicsUntracked WHERE TopicsUntracked.id IN (" +
-                    " SELECT TopicsUntracked.id FROM TopicsUntracked" +
-                    " LEFT JOIN temp.TopicsUntrackedNew ON TopicsUntracked.id = temp.TopicsUntrackedNew.id" +
-                    " WHERE temp.TopicsUntrackedNew.id IS NULL)"
-        )
+    fun commitUntrackedTopics(deleteOther: Boolean) {
+//        connection.createStatement()
+//            .execute("INSERT INTO TopicsUntracked (id,ss,na,hs,se,si,st,rg) SELECT id,ss,na,hs,se,si,st,rg FROM temp.TopicsUntrackedNew")
+//
+//        if (deleteOther)
+//            connection.createStatement().execute(
+//                "DELETE FROM TopicsUntracked WHERE id IN (" +
+//                        " SELECT TopicsUntracked.id FROM TopicsUntracked" +
+//                        " LEFT JOIN temp.TopicsUntrackedNew ON TopicsUntracked.id = temp.TopicsUntrackedNew.id" +
+//                        " WHERE temp.TopicsUntrackedNew.id IS NULL)"
+//            )
         connection.createStatement().execute("DROP TABLE temp.TopicsUntrackedNew")
     }
 
-    fun updateClientsUpdated(updatedTopicsHashes: Map<String, String>, clientId: Int) {
+    fun updateClientsUpdated(updatedTopicsHashes: Map<String, String>, clientId: Int, deleteOther: Boolean) {
         // FIXME: 11.11.2022 если в одном клиенте обновились больше нескольких тыс. раздач, могут быть проблемы
         if (updatedTopicsHashes.isEmpty())
             return
@@ -467,7 +458,6 @@ object TorrentRepository {
                     " SELECT oh,nh FROM ClientsUpdated" +
                     " LIMIT 0"
         )
-        connection.autoCommit = false
         val statement =
             connection.prepareStatement(
                 "INSERT INTO temp.ClientsUpdatedNew (oh,nh)" +
@@ -479,17 +469,17 @@ object TorrentRepository {
             statement.addBatch()
         }
         statement.executeBatch()
-        connection.autoCommit = true
         connection.createStatement()
-            .execute("INSERT INTO ClientsUpdated (cl,oh,nh) SELECT $clientId as cl,oh,nh FROM temp.ClientsUpdatedNew")
+            .execute("INSERT OR IGNORE INTO ClientsUpdated (cl,oh,nh) SELECT $clientId as cl,oh,nh FROM temp.ClientsUpdatedNew")
 
-        connection.createStatement().execute(
-            "DELETE FROM ClientsUpdated WHERE ClientsUpdated.cl == $clientId AND ClientsUpdated.nh IN" +
-                    " (SELECT ClientsUpdated.nh FROM ClientsUpdated" +
-                    " LEFT JOIN temp.ClientsUpdatedNew" +
-                    " ON (ClientsUpdated.nh = temp.ClientsUpdatedNew.nh OR ClientsUpdated.oh = temp.ClientsUpdatedNew.oh)" +
-                    " WHERE (temp.ClientsUpdatedNew.nh IS NULL OR temp.ClientsUpdatedNew.oh IS NULL))"
-        )
+        if (deleteOther)
+            connection.createStatement().execute(
+                "DELETE FROM ClientsUpdated WHERE ClientsUpdated.cl == $clientId AND ClientsUpdated.nh IN" +
+                        " (SELECT ClientsUpdated.nh FROM ClientsUpdated" +
+                        " LEFT JOIN temp.ClientsUpdatedNew" +
+                        " ON (ClientsUpdated.nh = temp.ClientsUpdatedNew.nh OR ClientsUpdated.oh = temp.ClientsUpdatedNew.oh)" +
+                        " WHERE (temp.ClientsUpdatedNew.nh IS NULL OR temp.ClientsUpdatedNew.oh IS NULL))"
+            )
         connection.createStatement().execute("DROP TABLE temp.ClientsUpdatedNew")
     }
 }

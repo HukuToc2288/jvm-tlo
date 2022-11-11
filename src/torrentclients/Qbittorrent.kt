@@ -16,17 +16,17 @@ import java.util.concurrent.TimeUnit
 
 // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)
 class Qbittorrent(
+    name: String,
     baseUrl: String,
-    ssl: Boolean,
-    val login: String,
-    val password: String
-) : AbstractTorrentClient() {
+    login: String,
+    password: String
+) : AbstractTorrentClient(name, baseUrl, login, password) {
 
     private val cookieJar = SingleUrlCookieJar()
     private val SESSION_COOKIE_NAME = "SID"
 
     val api = Retrofit.Builder()
-        .baseUrl("http${if (ssl) "s" else ""}://$baseUrl/api/")
+        .baseUrl("${baseUrl}api/")
         .addConverterFactory(ScalarsConverterFactory.create())
         .addConverterFactory(JacksonConverterFactory.create(ObjectMapper().apply {
             configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)

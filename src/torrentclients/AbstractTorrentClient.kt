@@ -5,7 +5,11 @@ import utils.TorrentClientException
 import java.io.IOException
 import kotlin.jvm.Throws
 
-abstract class AbstractTorrentClient() {
+abstract class AbstractTorrentClient(
+    val name: String,
+    baseUrl: String,
+    val login: String,
+    val password: String) {
 
     val rutrackerCommentRegex = "^https?://rutracker\\..*/forum/viewtopic\\.php\\?t=".toRegex()
 

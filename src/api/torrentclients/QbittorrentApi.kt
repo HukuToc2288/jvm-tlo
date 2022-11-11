@@ -10,7 +10,7 @@ interface QbittorrentApi {
 
     @POST("v2/auth/login")
     @FormUrlEncoded
-    fun login(@Field("username") username: String, @Field("password") password: String): Call<String>
+    fun login(@Field("username") username: String?, @Field("password") password: String?): Call<String>
 
     @GET("v2/app/version")
     fun version(): Call<String>

@@ -64,19 +64,6 @@ class MainTab : JPanel(GridBagLayout()) {
         }
     }
 
-    val testQbittorrent = buildTestQbittorrent()
-
-    private fun buildTestQbittorrent(): Qbittorrent {
-        Settings.node("torrent-client-1").let {
-            return Qbittorrent(
-                it["hostname", "localhost"].unquote() + ":" + it["port", "8080"].unquote(),
-                it["ssl", "0"].unquote() == "1",
-                it["login", "admin"].unquote()!!,
-                it["password", "adminadmin"].unquote()!!,
-            )
-        }
-    }
-
     val updateForumButton = buildControlButton("refresh", "Обновить сведения") {
         val updateForumResult = UpdateTopicsDialog(
             SwingUtilities.getWindowAncestor(this@MainTab) as JFrame
@@ -86,101 +73,7 @@ class MainTab : JPanel(GridBagLayout()) {
     }
 
     val testButton = buildControlButton("test", "Для теста разных функций") {
-        // TODO: 11.11.2022 всё вроде работает, но очень странно, что вот так наскоком всё получилось
-        //  ttsrtar
-        testQbittorrent.auth()
-        val torrents = testQbittorrent.getTorrents()
-        // TODO: 10.11.2022 проверить что все количества везде нормально сходятся
-        TorrentRepository.createTempClients()
-        TorrentRepository.createTempUntrackedTopics()
-        val rutrackerTopicsFromClient = ArrayList<TorrentClientTorrent>()
-        val noDbTopics = HashMap<Int, String>()
-        val untrackedTopicsIds = ArrayList<Int>()
-        val updatedTopicsHashes = HashMap<String, String>()    // старый и новый хэши
-        val keepingSubsectionsString = Settings.node("sections")["subsections", ""].unquote()!!
-        // берём пачками, т.к. от нескольких десятков тысяч торрентов может кончиться память
-        val packSize = 1000
-        var topicInfoRequestLimit = -1
-        for (i in torrents.indices step packSize) {
-            val topicsFromDb = TorrentRepository.getTopicIdsByHashes(torrents, i, packSize)
-            val currentTorrentsCount = min(torrents.size - i, packSize)
-            var countDiff = currentTorrentsCount - topicsFromDb.size
-            for (j in i until i + currentTorrentsCount) {
-                // если нашли все хэши, которых нет в БД, можно добавить остатки в список не проверяя
-                // TODO: 11.11.2022 ломается обработка "хвоста"
-//                if (countDiff == 0) {
-//                    println(i + currentTorrentsCount - j)
-//                    TorrentRepository.appendTorrentsFromClient(torrents, j, i + currentTorrentsCount)
-//                    break
-//                }
-                val currentTorrent = torrents[j]
-                // проверяем хэши
-                if (currentTorrent.hash !in topicsFromDb.values) {
-                    countDiff--
-                    // хэша нет в таблице, попробуем найти по теме
-                    if (currentTorrent.topicId == TorrentClientTorrent.TOPIC_NEED_QUERY) {
-                        // запрашиваем тему если её нет
-                        currentTorrent.topicId = testQbittorrent.getTorrentTopicId(currentTorrent.hash)
-                    }
-                    if (currentTorrent.topicId != TorrentClientTorrent.TOPIC_THIRD_PARTY) {
-                        // комментарий содержит тему, но хэша нет в базе
-                        noDbTopics[currentTorrent.topicId] = currentTorrent.hash
 
-                        // TODO: 09.11.2022 обработка случая, когда раздача закрыта
-                    } else {
-                        // тема не с рутрекера
-                        // TODO: 10.11.2022 и что с ней делать?
-                    }
-                } else {
-                    // хэш есть, всё окей
-                    rutrackerTopicsFromClient.add(currentTorrent)
-                }
-            }
-            if (noDbTopics.size == packSize || i+currentTorrentsCount == torrents.size && noDbTopics.isNotEmpty()) {
-                // хэши раздач, которые находятся в хранимых подразделах
-                val keepingUpdatedTopics = TorrentRepository.getTopicHashesByIdsInSubsections(
-                    noDbTopics.keys,
-                    keepingSubsectionsString
-                )
-                var noDbTopicsProcessed = 0
-                for (noDbTopicEntry in noDbTopics) {
-                    if (noDbTopicEntry.key in keepingUpdatedTopics.keys) {
-                        // айдишник есть в хранимых подразделах, значит обновился хэш
-                        // просто добавляем новый хэш в таблицу
-                        updatedTopicsHashes[noDbTopicEntry.value] = keepingUpdatedTopics[noDbTopicEntry.key]!!
-                    } else {
-                        // айдишника нет в хранимых подразделах, значит из другого раздела
-                        untrackedTopicsIds.add(noDbTopicEntry.key)
-                        if (topicInfoRequestLimit < 0)
-                            topicInfoRequestLimit = keeperRetrofit.getLimit().execute().body()?.limit ?: 100
-                    }
-                    if (untrackedTopicsIds.size == topicInfoRequestLimit || ++noDbTopicsProcessed == noDbTopics.size && untrackedTopicsIds.isNotEmpty()) {
-                        val untrackedTopicsData =
-                            keeperRetrofit.getTorrentTopicsData(untrackedTopicsIds.joinToString(","))
-                                .execute().body()!!.result
-                        untrackedTopicsIds.clear()
-                        TorrentRepository.appendUntrackedTopics(untrackedTopicsData)
-                        for (untrackedTopic in untrackedTopicsData) {
-                            untrackedTopic.value?.infoHash?.let { untrackedTopicHash ->
-                                noDbTopics[untrackedTopic.key]?.let { noDbTopicHash ->
-                                    if (noDbTopicHash != untrackedTopicHash)
-                                    // тема не только не отслеживается, но ещё и обновилась, ужас!
-                                        updatedTopicsHashes[noDbTopicHash] = untrackedTopicHash
-                                }
-                            }
-                        }
-                    }
-                }
-                noDbTopics.clear()
-            }
-            TorrentRepository.appendTorrentsFromClient(rutrackerTopicsFromClient)
-            rutrackerTopicsFromClient.clear()
-        }
-        // TODO: 11.11.2022 обрабатывать "хвосты", которые меньше размера пачки
-        TorrentRepository.commitTorrentsFromClient(1)
-        TorrentRepository.updateClientsUpdated(updatedTopicsHashes, 1)
-        // TODO: 11.11.2022 обновление других подразделов нужно выполнять после прохода по всем клиентам
-        TorrentRepository.commitUntrackedTopics()
 
         // TODO: 09.11.2022 сделать следующее:
         // получаем:
@@ -427,7 +320,7 @@ class MainTab : JPanel(GridBagLayout()) {
 
     fun buildControlButtonsPanel(): JComponent {
         val container: JPanel = JPanel()
-        container.setLayout(FlowLayout(FlowLayout.LEFT, 0, 0))
+        container.layout = FlowLayout(FlowLayout.LEFT, 0, 0)
         container.add(showFilterButton)
         container.add(resetFilterButton)
         container.add(Box.createHorizontalStrut(10))
@@ -497,20 +390,20 @@ class MainTab : JPanel(GridBagLayout()) {
                 add(JLabel("Период средних сидов:"))
                 add(averageSeedsSpinner)
             }.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {
                 add(JLabel("Дата регистрации до:"))
                 add(registerDateInput)
             }.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(buildSimpleSeparator().apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(JPanel(GridBagLayout()).apply {
                 border = EmptyBorder(5, 5, 5, 5)
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
                 val constraints = GridBagConstraints()
                 constraints.insets = Insets(2, 2, 2, 2)
                 constraints.anchor = GridBagConstraints.WEST
@@ -540,28 +433,28 @@ class MainTab : JPanel(GridBagLayout()) {
         val container = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(greenCheckbox.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(noKeepersCheckbox.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(noDownloadedCheckbox.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(hasDownloadedCheckbox.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(noSeedersCheckbox.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(hasSeedersCheckbox.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(buildSimpleSeparator().apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(JLabel("Количество сидов:").apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
             add(JPanel().apply {
                 layout = BoxLayout(this, BoxLayout.X_AXIS)
@@ -570,7 +463,7 @@ class MainTab : JPanel(GridBagLayout()) {
                 add(JLabel("до"))
                 add(seedHighSpinner)
             }.apply {
-                setAlignmentX(Component.LEFT_ALIGNMENT)
+                alignmentX = Component.LEFT_ALIGNMENT
             })
 
         }
@@ -595,7 +488,7 @@ class MainTab : JPanel(GridBagLayout()) {
     fun buildFilterRadiobutton(title: String, checked: Boolean = false): JRadioButton {
         val checkbox = JRadioButton(title)
         checkbox.isSelected = checked
-        checkbox.setAlignmentX(Component.LEFT_ALIGNMENT)
+        checkbox.alignmentX = Component.LEFT_ALIGNMENT
         checkbox.addItemListener {
             enqueueFilterUpdate()
         }

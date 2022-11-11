@@ -111,7 +111,14 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
      * Вызывается после того, как задача была успешно завершена
      */
     fun onTaskSuccess() {
-        dispose()
+        // FIXME: 11.11.2022 оставлено для отладки, в готовой версии окно должно просто закрываться
+        statusText.text = "Успешно"
+        statusText.foreground = Color.GREEN
+        defaultCloseOperation = DISPOSE_ON_CLOSE
+        cancelButton.text = "Закрыть"
+        cancelButton.removeActionListener(cancelListener)
+        cancelButton.addActionListener(closeListener)
+        cancelButton.isEnabled = true
         result = Result.SUCCESS
     }
 
@@ -189,21 +196,28 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
 
     fun setCurrentProgress(newValue: Int, newMaximum: Int = -1) {
         with(currentProgress) {
-            isIndeterminate = value < 0
+            isIndeterminate = newValue < 0
             if (newMaximum >= 0)
                 maximum = newMaximum
             value = newValue
         }
     }
 
-
     fun setFullProgress(newValue: Int, newMaximum: Int = -1) {
         with(fullProgress) {
-            isIndeterminate = value < 0
+            isIndeterminate = newValue < 0
             if (newMaximum >= 0)
                 maximum = newMaximum
             value = newValue
         }
+    }
+
+    fun incrementCurrentProgress(value: Int = 1){
+        currentProgress.value+=value
+    }
+
+    fun incrementFullProgress(value: Int = 1){
+        fullProgress.value+=value
     }
 
     enum class Result {
