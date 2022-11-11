@@ -86,24 +86,33 @@ class MainTab : JPanel(GridBagLayout()) {
     }
 
     val testButton = buildControlButton("test", "Для теста разных функций") {
+        // TODO: 11.11.2022 всё вроде работает, но очень странно, что вот так наскоком всё получилось
+        //  ttsrtar
         testQbittorrent.auth()
         val torrents = testQbittorrent.getTorrents()
         // TODO: 10.11.2022 проверить что все количества везде нормально сходятся
-        TorrentRepository.createTorrentsFromClient()
+        TorrentRepository.createTempClients()
+        TorrentRepository.createTempUntrackedTopics()
         val rutrackerTopicsFromClient = ArrayList<TorrentClientTorrent>()
+        val noDbTopics = HashMap<Int, String>()
+        val untrackedTopicsIds = ArrayList<Int>()
+        val updatedTopicsHashes = HashMap<String, String>()    // старый и новый хэши
+        val keepingSubsectionsString = Settings.node("sections")["subsections", ""].unquote()!!
         // берём пачками, т.к. от нескольких десятков тысяч торрентов может кончиться память
         val packSize = 1000
+        var topicInfoRequestLimit = -1
         for (i in torrents.indices step packSize) {
-            val topicsFromDb = TorrentRepository.getTopicsByHashes(torrents, i, packSize)
+            val topicsFromDb = TorrentRepository.getTopicIdsByHashes(torrents, i, packSize)
             val currentTorrentsCount = min(torrents.size - i, packSize)
             var countDiff = currentTorrentsCount - topicsFromDb.size
             for (j in i until i + currentTorrentsCount) {
                 // если нашли все хэши, которых нет в БД, можно добавить остатки в список не проверяя
-                if (countDiff == 0) {
-                    println(i + currentTorrentsCount - j)
-                    TorrentRepository.appendTorrentsFromClient(torrents, j,i + currentTorrentsCount)
-                    break
-                }
+                // TODO: 11.11.2022 ломается обработка "хвоста"
+//                if (countDiff == 0) {
+//                    println(i + currentTorrentsCount - j)
+//                    TorrentRepository.appendTorrentsFromClient(torrents, j, i + currentTorrentsCount)
+//                    break
+//                }
                 val currentTorrent = torrents[j]
                 // проверяем хэши
                 if (currentTorrent.hash !in topicsFromDb.values) {
@@ -114,9 +123,9 @@ class MainTab : JPanel(GridBagLayout()) {
                         currentTorrent.topicId = testQbittorrent.getTorrentTopicId(currentTorrent.hash)
                     }
                     if (currentTorrent.topicId != TorrentClientTorrent.TOPIC_THIRD_PARTY) {
-                        // тема есть, а хэши не совпадают
-                        // обновлённая раздача, догадался штирлиц
-                        // TODO: 09.11.2022 для них нужна отдельная таблица или флаг
+                        // комментарий содержит тему, но хэша нет в базе
+                        noDbTopics[currentTorrent.topicId] = currentTorrent.hash
+
                         // TODO: 09.11.2022 обработка случая, когда раздача закрыта
                     } else {
                         // тема не с рутрекера
@@ -127,10 +136,52 @@ class MainTab : JPanel(GridBagLayout()) {
                     rutrackerTopicsFromClient.add(currentTorrent)
                 }
             }
+            if (noDbTopics.size == packSize || i+currentTorrentsCount == torrents.size && noDbTopics.isNotEmpty()) {
+                // хэши раздач, которые находятся в хранимых подразделах
+                val keepingUpdatedTopics = TorrentRepository.getTopicHashesByIdsInSubsections(
+                    noDbTopics.keys,
+                    keepingSubsectionsString
+                )
+                var noDbTopicsProcessed = 0
+                for (noDbTopicEntry in noDbTopics) {
+                    if (noDbTopicEntry.key in keepingUpdatedTopics.keys) {
+                        // айдишник есть в хранимых подразделах, значит обновился хэш
+                        // просто добавляем новый хэш в таблицу
+                        updatedTopicsHashes[noDbTopicEntry.value] = keepingUpdatedTopics[noDbTopicEntry.key]!!
+                    } else {
+                        // айдишника нет в хранимых подразделах, значит из другого раздела
+                        untrackedTopicsIds.add(noDbTopicEntry.key)
+                        if (topicInfoRequestLimit < 0)
+                            topicInfoRequestLimit = keeperRetrofit.getLimit().execute().body()?.limit ?: 100
+                    }
+                    if (untrackedTopicsIds.size == topicInfoRequestLimit || ++noDbTopicsProcessed == noDbTopics.size && untrackedTopicsIds.isNotEmpty()) {
+                        val untrackedTopicsData =
+                            keeperRetrofit.getTorrentTopicsData(untrackedTopicsIds.joinToString(","))
+                                .execute().body()!!.result
+                        untrackedTopicsIds.clear()
+                        TorrentRepository.appendUntrackedTopics(untrackedTopicsData)
+                        for (untrackedTopic in untrackedTopicsData) {
+                            untrackedTopic.value?.infoHash?.let { untrackedTopicHash ->
+                                noDbTopics[untrackedTopic.key]?.let { noDbTopicHash ->
+                                    if (noDbTopicHash != untrackedTopicHash)
+                                    // тема не только не отслеживается, но ещё и обновилась, ужас!
+                                        updatedTopicsHashes[noDbTopicHash] = untrackedTopicHash
+                                }
+                            }
+                        }
+                    }
+                }
+                noDbTopics.clear()
+            }
             TorrentRepository.appendTorrentsFromClient(rutrackerTopicsFromClient)
             rutrackerTopicsFromClient.clear()
         }
+        // TODO: 11.11.2022 обрабатывать "хвосты", которые меньше размера пачки
         TorrentRepository.commitTorrentsFromClient(1)
+        TorrentRepository.updateClientsUpdated(updatedTopicsHashes, 1)
+        // TODO: 11.11.2022 обновление других подразделов нужно выполнять после прохода по всем клиентам
+        TorrentRepository.commitUntrackedTopics()
+
         // TODO: 09.11.2022 сделать следующее:
         // получаем:
         // - торренты из клиента
