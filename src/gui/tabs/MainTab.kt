@@ -568,73 +568,70 @@ class MainTab : JPanel(GridBagLayout()) {
         val model = torrentsTable.model as TorrentTableModel
         model.clear()
         var currentTorrentTableItem: TorrentTableItem? = null
+        for (torrentItem in torrentsFromDb) {
+            // начинаем обработку первой раздачи
+            if (currentTorrentTableItem == null) {
+                currentTorrentTableItem = TorrentTableItem.fromTorrentItem(torrentItem)
+            } else if (torrentItem.topicId == currentTorrentTableItem.topicId) {
+                // если равны айдишники, добавляем хранителя, если он есть
+                torrentItem.keeper?.let { currentTorrentTableItem!!.keepers.add(it) }
+            } else {
+                // если айдишники разные, начинаем новую раздачу
+                if (checkTableItemCriteria(currentTorrentTableItem))
+                    model.addTorrent(currentTorrentTableItem)
+                currentTorrentTableItem = TorrentTableItem.fromTorrentItem(torrentItem)
+            }
+        }
+        // добавляем хвост
+        currentTorrentTableItem?.let {
+            if (checkTableItemCriteria(currentTorrentTableItem))
+                model.addTorrent(currentTorrentTableItem)
+        }
+
+        model.commit()
+        println("final row count is " + model.rowCount)
+    }
+
+    fun checkTableItemCriteria(item: TorrentTableItem): Boolean {
         var hasDownloadingStatus = false
         var hasKeepingStatus = false
         var hasSeedingStatus = false
         var hasFullStatus = false
-        for (torrentItem in torrentsFromDb) {
-            if (currentTorrentTableItem == null || currentTorrentTableItem.topicId == torrentItem.topicId) {
-                // дропаем бота статистики
-                if (torrentItem.keeper?.name == "StatsBot")
-                    continue
-                // добавляем хранителей к текущей раздаче
-                torrentItem.keeper?.let {
-                    when (it.status) {
-                        KeeperItem.Status.DOWNLOADING -> hasDownloadingStatus = true
-                        KeeperItem.Status.KEEPING -> hasKeepingStatus = true
-                        KeeperItem.Status.SEEDING -> hasSeedingStatus = true
-                        KeeperItem.Status.FULL -> {
-                            hasKeepingStatus = true
-                            hasSeedingStatus = true
-                            hasFullStatus = true
-                        }
-                    }
-                    if (currentTorrentTableItem == null)
-                        currentTorrentTableItem = TorrentTableItem.fromTorrentItem(torrentItem)
-                    else
-                        currentTorrentTableItem!!.keepers.add(it)
-                } ?: kotlin.run {
-                    currentTorrentTableItem = TorrentTableItem.fromTorrentItem(torrentItem)
+        // собираем параметры хранителей
+        for (keeper in item.keepers) {
+            when (keeper.status) {
+                KeeperItem.Status.DOWNLOADING -> hasDownloadingStatus = true
+                KeeperItem.Status.KEEPING -> hasKeepingStatus = true
+                KeeperItem.Status.SEEDING -> hasSeedingStatus = true
+                KeeperItem.Status.FULL -> {
+                    hasKeepingStatus = true
+                    hasSeedingStatus = true
+                    hasFullStatus = true
                 }
-            } else {
-                if (currentTorrentTableItem == null)
-                    currentTorrentTableItem = TorrentTableItem.fromTorrentItem(torrentItem)
-                // добавляем или не добавляем в таблицу
-                var meetCriteria = true
-                if (hasSeedersCheckbox.isSelected && !hasSeedingStatus || noSeedersCheckbox.isSelected && hasSeedingStatus)
-                    meetCriteria = false
-                if (noKeepersCheckbox.isSelected && (hasKeepingStatus || hasDownloadingStatus))
-                    meetCriteria = false
-                if (noDownloadedCheckbox.isSelected && hasDownloadedCheckbox.isSelected && !(hasKeepingStatus || hasDownloadingStatus) ||
-                    noDownloadedCheckbox.isSelected && !hasDownloadedCheckbox.isSelected && (hasKeepingStatus || !hasDownloadingStatus) ||
-                    hasDownloadedCheckbox.isSelected && !noDownloadedCheckbox.isSelected && !hasKeepingStatus
-                )
-                    meetCriteria = false
-                // TODO: 02.11.2022 сделать фильтрацию по тексту на лету без обращения к бд
-                if (searchByKeeperField.text.isNotEmpty() &&
-                    currentTorrentTableItem?.keepers?.contains(
-                        KeeperItem(
-                            searchByKeeperField.text,
-                            KeeperItem.Status.DOWNLOADING
-                        )
-                    ) == false
-                )
-                    meetCriteria = false
-
-                if (meetCriteria)
-                    model.addTorrent(currentTorrentTableItem!!)
-
-                // начинаем новую раздачу
-                hasDownloadingStatus = false
-                hasKeepingStatus = false
-                hasSeedingStatus = false
-                hasFullStatus = false
-                currentTorrentTableItem = null
             }
         }
-        model.commit()
-        println("final row count is " + model.rowCount)
+        var meetCriteria = true
+        if (hasSeedersCheckbox.isSelected && !hasSeedingStatus || noSeedersCheckbox.isSelected && hasSeedingStatus)
+            meetCriteria = false
+        if (noKeepersCheckbox.isSelected && (hasKeepingStatus || hasDownloadingStatus))
+            meetCriteria = false
+        if (noDownloadedCheckbox.isSelected && hasDownloadedCheckbox.isSelected && !(hasKeepingStatus || hasDownloadingStatus) ||
+            noDownloadedCheckbox.isSelected && !hasDownloadedCheckbox.isSelected && (hasKeepingStatus || !hasDownloadingStatus) ||
+            hasDownloadedCheckbox.isSelected && !noDownloadedCheckbox.isSelected && !hasKeepingStatus
+        )
+            meetCriteria = false
+        // TODO: 02.11.2022 сделать фильтрацию по тексту на лету без обращения к бд
+        if (searchByKeeperField.text.isNotEmpty() && !item.keepers.contains(
+                KeeperItem(
+                    searchByKeeperField.text,
+                    KeeperItem.Status.DOWNLOADING
+                )
+            )
+        ) meetCriteria = false
+
+        return meetCriteria
     }
+
 
     fun updateForums() {
         if (!TorrentRepository.shouldUpdateForums()) {

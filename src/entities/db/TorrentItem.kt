@@ -7,5 +7,8 @@ class TorrentItem(
     val name: String,
     val date: Date,
     val seeds: Int,
-    val keeper: KeeperItem?
-)
+    keeper: KeeperItem?
+) {
+    // дропаем бота статистики здесь
+    val keeper = if (keeper?.name == "StatsBot") null else keeper
+}
