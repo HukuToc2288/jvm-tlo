@@ -288,6 +288,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             }
             TorrentRepository.commitTorrentsFromClient(torrentClientItem.key, true)
             TorrentRepository.updateClientsUpdated(updatedTopicsHashes, torrentClientItem.key, true)
+            incrementFullProgress()
         }
         TorrentRepository.commitUntrackedTopics(true)
     }
