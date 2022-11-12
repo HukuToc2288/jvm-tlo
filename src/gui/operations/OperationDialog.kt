@@ -1,5 +1,6 @@
 package gui.operations
 
+import utils.pluralForum
 import java.awt.*
 import java.awt.event.ActionListener
 import java.awt.event.WindowAdapter
@@ -49,7 +50,8 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         }
     }
 
-    private lateinit var result: Result
+    private var result: Result? = null
+    private var nonCriticalErrors = 0
 
     init {
         defaultCloseOperation = DO_NOTHING_ON_CLOSE
@@ -72,10 +74,14 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
                 JOptionPane.WARNING_MESSAGE
             ) == JOptionPane.YES_OPTION
         ) {
-            removeWindowListener(windowCloseListener)
-            cancelButton.isEnabled = false
-            taskCancelRequested = true
-            cancelButton.text = "Остановка..."
+            SwingUtilities.invokeLater {
+                if (result != null)
+                    return@invokeLater
+                removeWindowListener(windowCloseListener)
+                cancelButton.isEnabled = false
+                taskCancelRequested = true
+                cancelButton.text = "Остановка..."
+            }
         }
     }
 
@@ -85,7 +91,7 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
             doTask()
         }
         isVisible = true
-        return result
+        return result!!
     }
 
     abstract fun doTask()
@@ -111,44 +117,78 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
      * Вызывается после того, как задача была успешно завершена
      */
     fun onTaskSuccess() {
-        // FIXME: 11.11.2022 оставлено для отладки, в готовой версии окно должно просто закрываться
-        statusText.text = "Успешно"
-        statusText.foreground = Color.GREEN
-        defaultCloseOperation = DISPOSE_ON_CLOSE
-        cancelButton.text = "Закрыть"
-        cancelButton.removeActionListener(cancelListener)
-        cancelButton.addActionListener(closeListener)
-        cancelButton.isEnabled = true
-        result = Result.SUCCESS
+        SwingUtilities.invokeLater {
+            // FIXME: 11.11.2022 оставлено для отладки, в готовой версии окно должно просто закрываться
+            if (nonCriticalErrors > 0) {
+                statusText.text = "Выполнено с " +
+                        nonCriticalErrors.pluralForum("ошибкой", "ошибками") +
+                        ", проверьте журнал"
+                statusText.foreground = Color.YELLOW
+            } else {
+                statusText.text = "Успешно"
+                statusText.foreground = Color.GREEN
+            }
+            result = Result.SUCCESS
+            onTaskFinished()
+        }
     }
 
     /**
      * Вызывается, если при выполнении операции возникла неисправимая ошибка
      */
     fun onTaskFailed() {
-        statusText.text = "Произошла ошибка, проверьте журнал"
-        // TODO: 06.11.2022 а журнала-то нет, ыыы
-        statusText.foreground = Color.GREEN
-        defaultCloseOperation = DISPOSE_ON_CLOSE
-        cancelButton.text = "Закрыть"
-        cancelButton.removeActionListener(cancelListener)
-        cancelButton.addActionListener(closeListener)
-        cancelButton.isEnabled = true
-        result = Result.FAILED
+        SwingUtilities.invokeLater {
+            statusText.text = "Произошла критическая ошибка, проверьте журнал"
+            // TODO: 06.11.2022 а журнала-то нет, ыыы
+            statusText.foreground = Color.RED
+            result = Result.FAILED
+            onTaskFinished()
+        }
     }
 
     /**
      * Вызывается после того, как операция была отменена и выполнена соответствующая функция
      */
     private fun onTaskCancelled() {
-        statusText.text = "Операция отменена"
-        statusText.foreground = Color.YELLOW
+        SwingUtilities.invokeLater {
+            statusText.text = "Операция отменена"
+            statusText.foreground = fullText.foreground
+            result = Result.CANCELLED
+            onTaskFinished()
+        }
+    }
+
+    /**
+     * Вызывается после любого результата задачи
+     */
+    private fun onTaskFinished() {
         defaultCloseOperation = DISPOSE_ON_CLOSE
         cancelButton.text = "Закрыть"
         cancelButton.removeActionListener(cancelListener)
         cancelButton.addActionListener(closeListener)
         cancelButton.isEnabled = true
-        result = Result.CANCELLED
+        with(currentProgress) {
+            if (isIndeterminate) {
+                isIndeterminate = false
+                maximum = 1
+                value = 0
+            }
+        }
+        with(fullProgress) {
+            if (isIndeterminate) {
+                isIndeterminate = false
+                maximum = 1
+                value = 0
+            }
+        }
+    }
+
+    protected fun showNonCriticalError() {
+        nonCriticalErrors++
+        statusText.text =
+            nonCriticalErrors.pluralForum("некритическая ошибка", "некритические ошибки", "некритических ошибок") +
+                    ", работаем дальше"
+        statusText.foreground = Color.ORANGE
     }
 
     private fun buildGui() {
@@ -212,12 +252,12 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         }
     }
 
-    fun incrementCurrentProgress(value: Int = 1){
-        currentProgress.value+=value
+    fun incrementCurrentProgress(value: Int = 1) {
+        currentProgress.value += value
     }
 
-    fun incrementFullProgress(value: Int = 1){
-        fullProgress.value+=value
+    fun incrementFullProgress(value: Int = 1) {
+        fullProgress.value += value
     }
 
     enum class Result {
