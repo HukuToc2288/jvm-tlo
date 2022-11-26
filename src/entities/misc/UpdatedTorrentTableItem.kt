@@ -12,6 +12,7 @@ class UpdatedTorrentTableItem(
     seeds: Int,
     keepers: MutableList<KeeperItem>,
     val oldHash: String,
+    val newHash: String,
     val clientId: Int,
 ) : TorrentTableItem(topicId, name, date, seeds, keepers) {
     companion object {
@@ -26,6 +27,7 @@ class UpdatedTorrentTableItem(
                 else
                     mutableListOf(),
                 item.oldHash,
+                item.newHash,
                 item.clientId
             )
         }
