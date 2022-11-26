@@ -77,7 +77,7 @@ class MainTab : JPanel(GridBagLayout()) {
             SwingUtilities.getWindowAncestor(this@MainTab) as JFrame
         ).executeTask()
         println(updateForumResult)
-        showKeepingForums()
+        (topicSelector.selectedItem as MainTabSpinnerItem?)?.onSelect?.invoke()
     }
 
     val testButton = buildControlButton("test", "Для теста разных функций") {
@@ -292,6 +292,16 @@ class MainTab : JPanel(GridBagLayout()) {
         })
     }
 
+    val topicSelector = JComboBox<MainTabSpinnerItem>().apply {
+        addItemListener { event ->
+            if (event.stateChange == ItemEvent.SELECTED) {
+                val item = event.item as MainTabSpinnerItem
+                item.onSelect()
+                // do something with object
+            }
+        }
+    }
+
     init {
         buildGui()
     }
@@ -299,15 +309,6 @@ class MainTab : JPanel(GridBagLayout()) {
     fun buildGui() {
         var constraints = GridBagConstraints()
 
-        val topicSelector = JComboBox<MainTabSpinnerItem>().apply {
-            addItemListener { event ->
-                if (event.stateChange == ItemEvent.SELECTED) {
-                    val item = event.item as MainTabSpinnerItem
-                    item.onSelect()
-                    // do something with object
-                }
-            }
-        }
         addTopicSelectorItems(topicSelector)
         constraints.fill = GridBagConstraints.HORIZONTAL
         constraints.gridwidth = 5
@@ -349,11 +350,19 @@ class MainTab : JPanel(GridBagLayout()) {
             addItem(
                 MainTabSpinnerItem("Раздачи из всех хранимых подразделов") {
                     showKeepingForums()
+                    firstFilter.deepSetEnabled(true)
+                    secondFilter.deepSetEnabled(true)
+                    thirdFilter.deepSetEnabled(true)
+                    fourthFilter.deepSetEnabled(true)
                 }
             )
             addItem(
                 MainTabSpinnerItem("Обновлённые хранимые раздачи") {
                     showUpdatedTopics()
+                    firstFilter.deepSetEnabled(false)
+                    secondFilter.deepSetEnabled(false)
+                    thirdFilter.deepSetEnabled(false)
+                    fourthFilter.deepSetEnabled(false)
                 }
             )
         }
