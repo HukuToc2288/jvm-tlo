@@ -5,6 +5,36 @@ class KeeperItem(
     val name: String,
     var status: Status
 ) {
+    companion object {
+        fun fromDbResult(keeper: String?, seeder: String?, complete: Int): KeeperItem? {
+            return if (keeper != null) {
+                // есть официальный хранитель
+                KeeperItem(
+                    keeper,
+                    when {
+                        seeder == keeper -> {
+                            // официальный хранитель раздаёт
+                            KeeperItem.Status.FULL
+                        }
+                        complete == 1 -> {
+                            // официальный хранитель скачал и не раздаёт (вот редиска)
+                            KeeperItem.Status.KEEPING
+                        }
+                        else -> {
+                            // официальный хранитель ещё не скачал
+                            KeeperItem.Status.DOWNLOADING
+                        }
+                    }
+                )
+            } else if (seeder != null) {
+                // хранитель раздаёт неофициально
+                KeeperItem(seeder, KeeperItem.Status.SEEDING)
+            } else {
+                null
+            }
+        }
+    }
+
     override fun toString(): String {
         return name
     }

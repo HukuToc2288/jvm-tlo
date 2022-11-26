@@ -4,7 +4,7 @@ import entities.db.KeeperItem
 import entities.db.TorrentItem
 import java.util.*
 
-class TorrentTableItem(
+open class TorrentTableItem(
     val topicId: Int,
     val name: String,
     val date: Date,

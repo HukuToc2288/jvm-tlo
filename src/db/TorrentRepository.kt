@@ -49,12 +49,34 @@ object TorrentRepository {
 //        }
 //    }
 
-//    fun getUpdatedTopics(): Iterator<UpdatedTorrentItem>{
-//        val query =
-//            "SELECT Topics.id,Topics.na,Topics.rg,Topics.se,Keepers.nick,Keepers.complete,KeepersSeeders.nick FROM Topics" +
-//                    " LEFT OUTER JOIN Keepers ON Topics.id = Keepers.id" +
-//                    " LEFT OUTER JOIN KeepersSeeders ON Topics.id = KeepersSeeders.topic_id"
-//    }
+    fun getUpdatedTopics(): Iterator<UpdatedTorrentItem> {
+        // TODO: 26.11.2022 а нужны ли нам тут фильтры?
+        val query =
+            "SELECT Topics.id,na,rg,se,Keepers.nick,complete,KeepersSeeders.nick,ClientsUpdated.cl, oh, nh FROM Topics" +
+                    " LEFT OUTER JOIN Keepers ON Topics.id = Keepers.id" +
+                    " LEFT OUTER JOIN KeepersSeeders ON Topics.id = KeepersSeeders.topic_id" +
+                    " INNER JOIN ClientsUpdated ON ClientsUpdated.nh = Topics.hs"
+        val resultSet = connection.createStatement().executeQuery(query)
+        return object : CachingIterator<UpdatedTorrentItem>(resultSet) {
+            override fun processResult(resultSet: ResultSet): UpdatedTorrentItem {
+                val keeper = resultSet.getString(5)
+                val complete = resultSet.getInt(6)
+                val seeder = resultSet.getString(7)
+                val keeperItem = KeeperItem.fromDbResult(keeper,seeder,complete)
+                val torrentItem = TorrentItem(
+                    resultSet.getInt(1),
+                    resultSet.getString(2),
+                    Date(resultSet.getInt(3) * 1000L),
+                    resultSet.getInt(4),
+                    keeperItem
+                )
+                val clientId = resultSet.getInt(8)
+                val oldHash = resultSet.getString(9)
+                val newHash = resultSet.getString(10)
+                return UpdatedTorrentItem(clientId,oldHash,newHash,torrentItem)
+            }
+        }
+    }
 
     fun getKeepingForums(filter: TorrentFilterCriteria): Iterator<TorrentItem> {
         val query =
@@ -125,31 +147,7 @@ object TorrentRepository {
                 val keeper = resultSet.getString(5)
                 val complete = resultSet.getInt(6)
                 val seeder = resultSet.getString(7)
-                val keeperItem: KeeperItem? = if (keeper != null) {
-                    // есть официальный хранитель
-                    KeeperItem(
-                        keeper,
-                        when {
-                            seeder == keeper -> {
-                                // официальный хранитель раздаёт
-                                KeeperItem.Status.FULL
-                            }
-                            complete == 1 -> {
-                                // официальный хранитель скачал и не раздаёт (вот редиска)
-                                KeeperItem.Status.KEEPING
-                            }
-                            else -> {
-                                // официальный хранитель ещё не скачал
-                                KeeperItem.Status.DOWNLOADING
-                            }
-                        }
-                    )
-                } else if (seeder != null) {
-                    // хранитель раздаёт неофициально
-                    KeeperItem(seeder, KeeperItem.Status.SEEDING)
-                } else {
-                    null
-                }
+                val keeperItem = KeeperItem.fromDbResult(keeper,seeder,complete)
                 return TorrentItem(
                     resultSet.getInt(1),
                     resultSet.getString(2),
@@ -324,7 +322,7 @@ object TorrentRepository {
         val endIndex = min(offset + limit, torrents.size)
         for (i in offset until endIndex) {
             hashesStringBuilder.append(torrents[i].hash)
-            if (i != endIndex-1)
+            if (i != endIndex - 1)
                 hashesStringBuilder.append("','")
         }
         val query = "SELECT id,hs FROM Topics" +

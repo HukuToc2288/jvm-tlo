@@ -6,12 +6,14 @@ import entities.db.ForumItem
 import entities.db.KeeperItem
 import entities.keeper.ForumSize
 import entities.keeper.ForumTree
-import entities.torrentclient.TorrentClientTorrent
+import entities.misc.MainTabSpinnerItem
+import entities.misc.TorrentFilterCriteria
+import entities.misc.TorrentTableItem
+import entities.misc.UpdatedTorrentTableItem
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import gui.operations.UpdateTopicsDialog
-import torrentclients.Qbittorrent
 import utils.*
 import java.awt.*
 import java.text.SimpleDateFormat
@@ -26,7 +28,7 @@ import kotlin.collections.HashMap
 import javax.swing.SwingUtilities
 
 import javax.swing.JFrame
-import kotlin.math.min
+import java.awt.event.ItemEvent
 
 
 class MainTab : JPanel(GridBagLayout()) {
@@ -69,7 +71,7 @@ class MainTab : JPanel(GridBagLayout()) {
             SwingUtilities.getWindowAncestor(this@MainTab) as JFrame
         ).executeTask()
         println(updateForumResult)
-        queryAndUpdateTable()
+        showKeepingForums()
     }
 
     val testButton = buildControlButton("test", "Для теста разных функций") {
@@ -274,15 +276,16 @@ class MainTab : JPanel(GridBagLayout()) {
     fun buildGui() {
         var constraints = GridBagConstraints()
 
-        val topicSelector = JComboBox<String>(
-            arrayOf(
-                "Раздачи из всех хранимых подразделов",
-                "Раздачи с высоким приоритетом хранения",
-                "Ъеъ"
-            )
-        ).apply {
-
+        val topicSelector = JComboBox<MainTabSpinnerItem>().apply {
+            addItemListener { event ->
+                if (event.stateChange == ItemEvent.SELECTED) {
+                    val item = event.item as MainTabSpinnerItem
+                    item.onSelect()
+                    // do something with object
+                }
+            }
         }
+        addTopicSelectorItems(topicSelector)
         constraints.fill = GridBagConstraints.HORIZONTAL
         constraints.gridwidth = 5
         constraints.gridx = 0
@@ -316,6 +319,21 @@ class MainTab : JPanel(GridBagLayout()) {
         constraints.weighty = 1.0
         constraints.fill = GridBagConstraints.BOTH
         add(JScrollPane(torrentsTable), constraints)
+    }
+
+    private fun addTopicSelectorItems(topicSelector: JComboBox<MainTabSpinnerItem>) {
+        with(topicSelector) {
+            addItem(
+                MainTabSpinnerItem("Раздачи из всех хранимых подразделов") {
+                    showKeepingForums()
+                }
+            )
+            addItem(
+                MainTabSpinnerItem("Обновлённые хранимые раздачи") {
+                    showUpdatedTopics()
+                }
+            )
+        }
     }
 
     fun buildControlButtonsPanel(): JComponent {
@@ -510,13 +528,42 @@ class MainTab : JPanel(GridBagLayout()) {
         updateFilterTimer = Timer()
         updateFilterTimer.schedule(object : TimerTask() {
             override fun run() {
-                queryAndUpdateTable()
+                showKeepingForums()
             }
 
         }, 200)
     }
 
-    fun queryAndUpdateTable() {
+
+    private fun showUpdatedTopics() {
+        val torrentsFromDb = TorrentRepository.getUpdatedTopics()
+        val model = torrentsTable.model as TorrentTableModel
+        model.clear()
+        var currentTorrentTableItem: UpdatedTorrentTableItem? = null
+        for (torrentItem in torrentsFromDb) {
+            // начинаем обработку первой раздачи
+            if (currentTorrentTableItem == null) {
+                currentTorrentTableItem = UpdatedTorrentTableItem.fromUpdatedTorrentItem(torrentItem)
+            } else if (torrentItem.torrentItem.topicId == currentTorrentTableItem.topicId) {
+                // если равны айдишники, добавляем хранителя, если он есть
+                torrentItem.torrentItem.keeper?.let { currentTorrentTableItem!!.keepers.add(it) }
+            } else {
+                // если айдишники разные, начинаем новую раздачу
+                //if (checkTableItemCriteria(currentTorrentTableItem))
+                    model.addTorrent(currentTorrentTableItem)
+                currentTorrentTableItem =  UpdatedTorrentTableItem.fromUpdatedTorrentItem(torrentItem)
+            }
+        }
+        // добавляем хвост
+        currentTorrentTableItem?.let {
+            //if (checkTableItemCriteria(currentTorrentTableItem))
+                model.addTorrent(currentTorrentTableItem)
+        }
+
+        model.commit()
+    }
+
+    fun showKeepingForums() {
         val torrentFilter = TorrentFilterCriteria(
             sortAscendingRadio.isSelected,
             when {
@@ -564,7 +611,7 @@ class MainTab : JPanel(GridBagLayout()) {
             noSeedersCheckbox.isSelected,
             hasSeedersCheckbox.isSelected,
         )
-        val torrentsFromDb = TorrentRepository.getFilteredTorrents(torrentFilter)
+        val torrentsFromDb = TorrentRepository.getKeepingForums(torrentFilter)
         val model = torrentsTable.model as TorrentTableModel
         model.clear()
         var currentTorrentTableItem: TorrentTableItem? = null
