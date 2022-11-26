@@ -3,9 +3,11 @@ package db
 import entities.db.*
 import entities.keeper.ForumTorrentTopicsData
 import entities.torrentclient.TorrentClientTorrent
-import utils.TorrentFilterCriteria
+import entities.misc.TorrentFilterCriteria
+import utils.CachingIterator
 import java.lang.StringBuilder
 import java.sql.DriverManager
+import java.sql.ResultSet
 import java.util.*
 import kotlin.collections.HashMap
 import kotlin.math.min
@@ -47,7 +49,14 @@ object TorrentRepository {
 //        }
 //    }
 
-    fun getFilteredTorrents(filter: TorrentFilterCriteria): Iterator<TorrentItem> {
+//    fun getUpdatedTopics(): Iterator<UpdatedTorrentItem>{
+//        val query =
+//            "SELECT Topics.id,Topics.na,Topics.rg,Topics.se,Keepers.nick,Keepers.complete,KeepersSeeders.nick FROM Topics" +
+//                    " LEFT OUTER JOIN Keepers ON Topics.id = Keepers.id" +
+//                    " LEFT OUTER JOIN KeepersSeeders ON Topics.id = KeepersSeeders.topic_id"
+//    }
+
+    fun getKeepingForums(filter: TorrentFilterCriteria): Iterator<TorrentItem> {
         val query =
             "SELECT Topics.id,Topics.na,Topics.rg,Topics.se,Keepers.nick,Keepers.complete,KeepersSeeders.nick FROM Topics" +
                     " LEFT OUTER JOIN Keepers ON Topics.id = Keepers.id" +
@@ -111,18 +120,8 @@ object TorrentRepository {
         println(statement)
         val resultSet = statement.executeQuery()
 
-        return object : Iterator<TorrentItem> {
-            var cachedHasNext = false
-            override fun hasNext(): Boolean {
-                if (!cachedHasNext)
-                    cachedHasNext = resultSet.next()
-                return cachedHasNext
-            }
-
-            override fun next(): TorrentItem {
-                if (!cachedHasNext)
-                    resultSet.next()
-                cachedHasNext = false
+        return object : CachingIterator<TorrentItem>(resultSet) {
+            override fun processResult(resultSet: ResultSet): TorrentItem {
                 val keeper = resultSet.getString(5)
                 val complete = resultSet.getInt(6)
                 val seeder = resultSet.getString(7)

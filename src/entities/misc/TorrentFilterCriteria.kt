@@ -1,4 +1,4 @@
-package utils
+package entities.misc
 
 import java.util.*
 

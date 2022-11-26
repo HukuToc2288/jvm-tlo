@@ -1,4 +1,4 @@
-package utils
+package entities.misc
 
 import entities.db.KeeperItem
 import entities.db.TorrentItem

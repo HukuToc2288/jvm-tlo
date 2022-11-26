@@ -1,6 +1,7 @@
 package utils
 
 import entities.db.TorrentItem
+import entities.misc.TorrentTableItem
 import java.text.SimpleDateFormat
 import javax.swing.table.AbstractTableModel
 
