@@ -29,6 +29,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 onTaskSuccess()
             } catch (e: Exception) {
                 onTaskFailed()
+                e.printStackTrace()
             }
         }
         updateTorrentsThread.start()
@@ -162,6 +163,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         //  проверить, что точно всё правильно, и никакие пограничные случаи не пропущены
         val torrentClients = Settings.getTorrentClients()
         TorrentRepository.createTempUntrackedTopics()
+        TorrentRepository.createTempUnregisteredTopics()
         setFullText("Получение раздач из ${torrentClients.size.pluralForum("торрент-клиента", "торрент-клиентов")}")
         setFullProgress(0, torrentClients.size)
         for (torrentClientItem in torrentClients) {
@@ -171,11 +173,13 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 setCurrentProgress(-1)
                 if (cancelTaskIfRequested {
                         TorrentRepository.commitUntrackedTopics(false)
+                        TorrentRepository.commitUnregisteredTopics(false)
                     }) return
                 torrentClient.auth()
                 val torrents = torrentClient.getTorrents()
                 if (cancelTaskIfRequested {
                         TorrentRepository.commitUntrackedTopics(false)
+                        TorrentRepository.commitUnregisteredTopics(false)
                     }) return
                 setCurrentText(
                     "Обработка ${torrents.size.pluralForum("раздачи", "раздач")}" +
@@ -190,6 +194,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 val noDbTopics = HashMap<String, Int>()
                 val untrackedTopicsIds = ArrayList<Int>()
                 val updatedTopicsHashes = HashMap<String, String>()    // старый и новый хэши
+                val unregisteredTopics = HashMap<String, Int>()    // хэш который в клиенте и номер темы
                 val keepingSubsectionsString = Settings.node("sections")["subsections", ""].unquote()
                 // берём пачками, т.к. от нескольких десятков тысяч торрентов может кончиться память
                 val packSize = 1000
@@ -263,12 +268,23 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                                             false
                                         )
                                         TorrentRepository.commitUntrackedTopics(false)
+                                        TorrentRepository.commitUnregisteredTopics(false)
                                     }) return
                                 val untrackedTopicsData =
                                     keeperRetrofit.getTorrentTopicsData(untrackedTopicsIds.joinToString(","))
                                         .execute().body()!!.result
-                                TorrentRepository.appendUntrackedTopics(untrackedTopicsData)
                                 for (untrackedTopic in untrackedTopicsData) {
+                                    if (untrackedTopic.value == null) {
+                                        // торрент не зарегистрирован, а значит скорее всего разрегистрирован
+                                        val clientHashesOfTopics = noDbTopics.getKeysByValue(untrackedTopic.key)
+                                        for (clientHashOfTopic in clientHashesOfTopics) {
+                                            if (clientHashOfTopic != untrackedTopic.value?.infoHash) {
+                                                // добавляем все хэши от данной темы
+                                                unregisteredTopics[clientHashOfTopic] = untrackedTopic.key
+                                            }
+                                        }
+                                        continue
+                                    }
                                     untrackedTopic.value?.forumId?.let { untrackedTopicId ->
                                         val clientHashesOfTopics = noDbTopics.getKeysByValue(untrackedTopicId)
                                         untrackedTopic.value?.infoHash?.let { untrackedTopicHash ->
@@ -281,8 +297,11 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                                         }
                                     }
                                 }
+                                TorrentRepository.appendUntrackedTopics(untrackedTopicsData)
+                                TorrentRepository.appendUnregisteredTopics(unregisteredTopics)
                                 incrementCurrentProgress(untrackedTopicsIds.size)
                                 untrackedTopicsIds.clear()
+                                unregisteredTopics.clear()
                             }
                         }
                         noDbTopics.clear()
@@ -300,6 +319,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             }
         }
         TorrentRepository.commitUntrackedTopics(true)
+        TorrentRepository.commitUnregisteredTopics(true)
     }
 
     fun <T, E> Map<T, E>.getKeysByValue(value: E): Set<T> {

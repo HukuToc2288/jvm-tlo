@@ -62,7 +62,7 @@ object TorrentRepository {
                 val keeper = resultSet.getString(5)
                 val complete = resultSet.getInt(6)
                 val seeder = resultSet.getString(7)
-                val keeperItem = KeeperItem.fromDbResult(keeper,seeder,complete)
+                val keeperItem = KeeperItem.fromDbResult(keeper, seeder, complete)
                 val torrentItem = TorrentItem(
                     resultSet.getInt(1),
                     resultSet.getString(2),
@@ -73,7 +73,25 @@ object TorrentRepository {
                 val clientId = resultSet.getInt(8)
                 val oldHash = resultSet.getString(9)
                 val newHash = resultSet.getString(10)
-                return UpdatedTorrentItem(clientId,oldHash,newHash,torrentItem)
+                return UpdatedTorrentItem(clientId, oldHash, newHash, torrentItem)
+            }
+        }
+    }
+
+    fun getUnregisteredTopics(): Iterator<TorrentItem> {
+        val query = "SELECT id,hs from TopicsUnregistered"
+        val resultSet = connection.createStatement().executeQuery(query)
+        return object : CachingIterator<TorrentItem>(resultSet) {
+            override fun processResult(resultSet: ResultSet): TorrentItem {
+                val id = resultSet.getInt(1)
+                val hash = resultSet.getString(2)
+                return TorrentItem(
+                    id,
+                    "Тема $id (хэш из клиента $hash)",
+                    Date(),
+                    0,
+                    null
+                )
             }
         }
     }
@@ -147,7 +165,7 @@ object TorrentRepository {
                 val keeper = resultSet.getString(5)
                 val complete = resultSet.getInt(6)
                 val seeder = resultSet.getString(7)
-                val keeperItem = KeeperItem.fromDbResult(keeper,seeder,complete)
+                val keeperItem = KeeperItem.fromDbResult(keeper, seeder, complete)
                 return TorrentItem(
                     resultSet.getInt(1),
                     resultSet.getString(2),
@@ -401,6 +419,41 @@ object TorrentRepository {
         connection.createStatement().execute("DROP TABLE temp.ClientsNew")
     }
 
+    fun createTempUnregisteredTopics() {
+        connection.createStatement().execute(
+            "CREATE TEMPORARY TABLE TopicsUnregisteredNew AS" +
+                    " SELECT id,hs FROM TopicsUnregistered LIMIT 0"
+        )
+    }
+
+    fun appendUnregisteredTopics(unregisteredTopics: HashMap<String, Int>) {
+        if (unregisteredTopics.isEmpty())
+            return
+        val statement = connection.prepareStatement(
+            "INSERT INTO temp.TopicsUnregisteredNew (id,hs)" +
+                    " VALUES (?,?)"
+        )
+        for (unregisteredTopicEntry in unregisteredTopics) {
+            statement.setInt(1, unregisteredTopicEntry.value)
+            statement.setString(2, unregisteredTopicEntry.key)
+            statement.addBatch()
+        }
+        statement.executeBatch()
+    }
+
+    fun commitUnregisteredTopics(deleteOther: Boolean = false) {
+        connection.createStatement()
+            .execute("INSERT INTO TopicsUnregistered(id,hs) SELECT id,hs FROM temp.TopicsUnregisteredNew")
+
+        if (deleteOther)
+            connection.createStatement().execute(
+                "DELETE FROM TopicsUnregistered WHERE id IN (" +
+                        " SELECT TopicsUnregistered.id FROM TopicsUnregistered" +
+                        " LEFT JOIN temp.TopicsUnregisteredNew ON TopicsUnregistered.id = temp.TopicsUnregisteredNew.id" +
+                        " WHERE temp.TopicsUnregisteredNew.id IS NULL)"
+            )
+        connection.createStatement().execute("DROP TABLE temp.TopicsUnregisteredNew")
+    }
 
     fun createTempUntrackedTopics() {
         connection.createStatement().execute(
@@ -410,39 +463,39 @@ object TorrentRepository {
     }
 
     fun appendUntrackedTopics(untrackedTopicsData: HashMap<Int, ForumTorrentTopicsData.TopicData?>) {
-//        if (untrackedTopicsData.isEmpty())
-//            return
-//        val statement = connection.prepareStatement(
-//            "INSERT INTO temp.TopicsUntrackedNew (id,ss,na,hs,se,si,st,rg)" +
-//                    " VALUES (?,?,?,?,?,?,?,?)"
-//        )
-//        for (untrackedTopicEntry in untrackedTopicsData) {
-//            untrackedTopicEntry.value?.let { untrackedTopic ->
-//                statement.setInt(1, untrackedTopicEntry.key)
-//                statement.setInt(2, untrackedTopic.forumId)
-//                statement.setString(3, untrackedTopic.topicTitle)
-//                statement.setString(4, untrackedTopic.infoHash)
-//                statement.setInt(5, untrackedTopic.seeders)
-//                statement.setLong(6, untrackedTopic.size)
-//                statement.setInt(7, untrackedTopic.torStatus)
-//                statement.setInt(8, untrackedTopic.regTime)
-//                statement.addBatch()
-//            }
-//        }
-//        statement.executeBatch()
+        if (untrackedTopicsData.isEmpty())
+            return
+        val statement = connection.prepareStatement(
+            "INSERT INTO temp.TopicsUntrackedNew (id,ss,na,hs,se,si,st,rg)" +
+                    " VALUES (?,?,?,?,?,?,?,?)"
+        )
+        for (untrackedTopicEntry in untrackedTopicsData) {
+            untrackedTopicEntry.value?.let { untrackedTopic ->
+                statement.setInt(1, untrackedTopicEntry.key)
+                statement.setInt(2, untrackedTopic.forumId)
+                statement.setString(3, untrackedTopic.topicTitle)
+                statement.setString(4, untrackedTopic.infoHash)
+                statement.setInt(5, untrackedTopic.seeders)
+                statement.setLong(6, untrackedTopic.size)
+                statement.setInt(7, untrackedTopic.torStatus)
+                statement.setInt(8, untrackedTopic.regTime)
+                statement.addBatch()
+            }
+        }
+        statement.executeBatch()
     }
 
     fun commitUntrackedTopics(deleteOther: Boolean) {
-//        connection.createStatement()
-//            .execute("INSERT INTO TopicsUntracked (id,ss,na,hs,se,si,st,rg) SELECT id,ss,na,hs,se,si,st,rg FROM temp.TopicsUntrackedNew")
-//
-//        if (deleteOther)
-//            connection.createStatement().execute(
-//                "DELETE FROM TopicsUntracked WHERE id IN (" +
-//                        " SELECT TopicsUntracked.id FROM TopicsUntracked" +
-//                        " LEFT JOIN temp.TopicsUntrackedNew ON TopicsUntracked.id = temp.TopicsUntrackedNew.id" +
-//                        " WHERE temp.TopicsUntrackedNew.id IS NULL)"
-//            )
+        connection.createStatement()
+            .execute("INSERT INTO TopicsUntracked (id,ss,na,hs,se,si,st,rg) SELECT id,ss,na,hs,se,si,st,rg FROM temp.TopicsUntrackedNew")
+
+        if (deleteOther)
+            connection.createStatement().execute(
+                "DELETE FROM TopicsUntracked WHERE id IN (" +
+                        " SELECT TopicsUntracked.id FROM TopicsUntracked" +
+                        " LEFT JOIN temp.TopicsUntrackedNew ON TopicsUntracked.id = temp.TopicsUntrackedNew.id" +
+                        " WHERE temp.TopicsUntrackedNew.id IS NULL)"
+            )
         connection.createStatement().execute("DROP TABLE temp.TopicsUntrackedNew")
     }
 

@@ -365,6 +365,15 @@ class MainTab : JPanel(GridBagLayout()) {
                     fourthFilter.deepSetEnabled(false)
                 }
             )
+            addItem(
+                MainTabSpinnerItem("Разрегистрированные хранимые раздачи") {
+                    showUnregisteredTopics()
+                    firstFilter.deepSetEnabled(false)
+                    secondFilter.deepSetEnabled(false)
+                    thirdFilter.deepSetEnabled(false)
+                    fourthFilter.deepSetEnabled(false)
+                }
+            )
         }
     }
 
@@ -591,6 +600,16 @@ class MainTab : JPanel(GridBagLayout()) {
             model.addTorrent(currentTorrentTableItem)
         }
 
+        model.commit()
+    }
+
+    private fun showUnregisteredTopics() {
+        val torrentsFromDb = TorrentRepository.getUnregisteredTopics()
+        val model = torrentsTable.model as TorrentTableModel
+        model.clear()
+        for (torrentItem in torrentsFromDb) {
+            model.addTorrent(TorrentTableItem.fromTorrentItem(torrentItem))
+        }
         model.commit()
     }
 
