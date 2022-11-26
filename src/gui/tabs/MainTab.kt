@@ -266,6 +266,7 @@ class MainTab : JPanel(GridBagLayout()) {
             getColumn(2).minWidth = 48
             getColumn(3).maxWidth = 320
             getColumn(3).preferredWidth = 320
+            //getColumn(3).cellRenderer = KeeperTableCellRender()
         }
     }
 
@@ -550,14 +551,14 @@ class MainTab : JPanel(GridBagLayout()) {
             } else {
                 // если айдишники разные, начинаем новую раздачу
                 //if (checkTableItemCriteria(currentTorrentTableItem))
-                    model.addTorrent(currentTorrentTableItem)
-                currentTorrentTableItem =  UpdatedTorrentTableItem.fromUpdatedTorrentItem(torrentItem)
+                model.addTorrent(currentTorrentTableItem)
+                currentTorrentTableItem = UpdatedTorrentTableItem.fromUpdatedTorrentItem(torrentItem)
             }
         }
         // добавляем хвост
         currentTorrentTableItem?.let {
             //if (checkTableItemCriteria(currentTorrentTableItem))
-                model.addTorrent(currentTorrentTableItem)
+            model.addTorrent(currentTorrentTableItem)
         }
 
         model.commit()
