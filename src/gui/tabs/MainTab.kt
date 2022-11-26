@@ -29,6 +29,12 @@ import javax.swing.SwingUtilities
 
 import javax.swing.JFrame
 import java.awt.event.ItemEvent
+import javax.swing.JTable
+
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import java.awt.Desktop
+import java.net.URL
 
 
 class MainTab : JPanel(GridBagLayout()) {
@@ -268,6 +274,22 @@ class MainTab : JPanel(GridBagLayout()) {
             getColumn(3).preferredWidth = 320
             //getColumn(3).cellRenderer = KeeperTableCellRender()
         }
+
+        addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(mouseEvent: MouseEvent) {
+                val table = mouseEvent.getSource() as JTable
+                val point: Point = mouseEvent.getPoint()
+                val row = table.rowAtPoint(point)
+                if (mouseEvent.getClickCount() == 2 && table.selectedRow != -1) {
+                    try {
+                        Desktop.getDesktop()
+                            .browse(URL("https://rutracker.org/forum/viewtopic.php?t=${tableModel.getValueAt(row).topicId}").toURI())
+                    } catch (e: Exception) {
+                        // TODO: 26.11.2022 если браузер не подхватывается, нужно предусмотреть ввод команды
+                    }
+                }
+            }
+        })
     }
 
     init {
