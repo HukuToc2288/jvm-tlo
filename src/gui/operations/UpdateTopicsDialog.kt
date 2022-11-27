@@ -166,6 +166,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         TorrentRepository.createTempUnregisteredTopics()
         setFullText("Получение раздач из ${torrentClients.size.pluralForum("торрент-клиента", "торрент-клиентов")}")
         setFullProgress(0, torrentClients.size)
+        val updatedTopicsHashes = HashMap<String, String>()    // старый и новый хэши
         for (torrentClientItem in torrentClients) {
             try {
                 val torrentClient = torrentClientItem.value
@@ -193,7 +194,6 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 // FIXME: 12.11.2022 в идеале здесь нужна структура, нормально работающая в обе стороны
                 val noDbTopics = HashMap<String, Int>()
                 val untrackedTopicsIds = ArrayList<Int>()
-                val updatedTopicsHashes = HashMap<String, String>()    // старый и новый хэши
                 val unregisteredTopics = HashMap<String, Int>()    // хэш который в клиенте и номер темы
                 val keepingSubsectionsString = Settings.node("sections")["subsections", ""].unquote()
                 // берём пачками, т.к. от нескольких десятков тысяч торрентов может кончиться память
@@ -262,11 +262,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                             if (untrackedTopicsIds.size == topicInfoRequestLimit || noDbTopicsProcessed == noDbTopics.size && untrackedTopicsIds.isNotEmpty()) {
                                 if (cancelTaskIfRequested {
                                         TorrentRepository.commitTorrentsFromClient(torrentClientItem.key, false)
-                                        TorrentRepository.updateClientsUpdated(
-                                            updatedTopicsHashes,
-                                            torrentClientItem.key,
-                                            false
-                                        )
+                                        TorrentRepository.updateTopicsUpdated(updatedTopicsHashes,false)
                                         TorrentRepository.commitUntrackedTopics(false)
                                         TorrentRepository.commitUnregisteredTopics(false)
                                     }) return
@@ -310,7 +306,6 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                     rutrackerTopicsFromClient.clear()
                 }
                 TorrentRepository.commitTorrentsFromClient(torrentClientItem.key, true)
-                TorrentRepository.updateClientsUpdated(updatedTopicsHashes, torrentClientItem.key, true)
             } catch (e: Exception) {
                 e.printStackTrace()
                 showNonCriticalError()
@@ -320,6 +315,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         }
         TorrentRepository.commitUntrackedTopics(true)
         TorrentRepository.commitUnregisteredTopics(true)
+        TorrentRepository.updateTopicsUpdated(updatedTopicsHashes, true)
     }
 
     fun <T, E> Map<T, E>.getKeysByValue(value: E): Set<T> {

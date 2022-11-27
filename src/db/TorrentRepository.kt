@@ -52,10 +52,10 @@ object TorrentRepository {
     fun getUpdatedTopics(): Iterator<UpdatedTorrentItem> {
         // TODO: 26.11.2022 а нужны ли нам тут фильтры?
         val query =
-            "SELECT Topics.id,na,rg,se,Keepers.nick,complete,KeepersSeeders.nick,ClientsUpdated.cl, oh, nh FROM Topics" +
+            "SELECT Topics.id,na,rg,se,Keepers.nick,complete,KeepersSeeders.nick,TopicsUpdated.cl, oh, nh FROM Topics" +
                     " LEFT OUTER JOIN Keepers ON Topics.id = Keepers.id" +
                     " LEFT OUTER JOIN KeepersSeeders ON Topics.id = KeepersSeeders.topic_id" +
-                    " INNER JOIN ClientsUpdated ON ClientsUpdated.nh = Topics.hs"
+                    " INNER JOIN TopicsUpdated ON TopicsUpdated.nh = Topics.hs"
         val resultSet = connection.createStatement().executeQuery(query)
         return object : CachingIterator<UpdatedTorrentItem>(resultSet) {
             override fun processResult(resultSet: ResultSet): UpdatedTorrentItem {
@@ -443,7 +443,7 @@ object TorrentRepository {
 
     fun commitUnregisteredTopics(deleteOther: Boolean = false) {
         connection.createStatement()
-            .execute("INSERT INTO TopicsUnregistered(id,hs) SELECT id,hs FROM temp.TopicsUnregisteredNew")
+            .execute("INSERT OR IGNORE INTO TopicsUnregistered(id,hs) SELECT id,hs FROM temp.TopicsUnregisteredNew")
 
         if (deleteOther)
             connection.createStatement().execute(
@@ -499,18 +499,18 @@ object TorrentRepository {
         connection.createStatement().execute("DROP TABLE temp.TopicsUntrackedNew")
     }
 
-    fun updateClientsUpdated(updatedTopicsHashes: Map<String, String>, clientId: Int, deleteOther: Boolean) {
+    fun updateTopicsUpdated(updatedTopicsHashes: Map<String, String>, deleteOther: Boolean) {
         // FIXME: 11.11.2022 если в одном клиенте обновились больше нескольких тыс. раздач, могут быть проблемы
         if (updatedTopicsHashes.isEmpty())
             return
         connection.createStatement().execute(
-            "CREATE TEMPORARY TABLE ClientsUpdatedNew AS" +
-                    " SELECT oh,nh FROM ClientsUpdated" +
+            "CREATE TEMPORARY TABLE TopicsUpdatedNew AS" +
+                    " SELECT oh,nh FROM TopicsUpdated" +
                     " LIMIT 0"
         )
         val statement =
             connection.prepareStatement(
-                "INSERT INTO temp.ClientsUpdatedNew (oh,nh)" +
+                "INSERT INTO temp.TopicsUpdatedNew (oh,nh)" +
                         " VALUES (?,?)"
             )
         for (topic in updatedTopicsHashes) {
@@ -520,16 +520,16 @@ object TorrentRepository {
         }
         statement.executeBatch()
         connection.createStatement()
-            .execute("INSERT OR IGNORE INTO ClientsUpdated (cl,oh,nh) SELECT $clientId as cl,oh,nh FROM temp.ClientsUpdatedNew")
+            .execute("INSERT OR IGNORE INTO TopicsUpdated (oh,nh) SELECT oh,nh FROM temp.TopicsUpdatedNew")
 
         if (deleteOther)
             connection.createStatement().execute(
-                "DELETE FROM ClientsUpdated WHERE ClientsUpdated.cl == $clientId AND ClientsUpdated.nh IN" +
-                        " (SELECT ClientsUpdated.nh FROM ClientsUpdated" +
-                        " LEFT JOIN temp.ClientsUpdatedNew" +
-                        " ON (ClientsUpdated.nh = temp.ClientsUpdatedNew.nh OR ClientsUpdated.oh = temp.ClientsUpdatedNew.oh)" +
-                        " WHERE (temp.ClientsUpdatedNew.nh IS NULL OR temp.ClientsUpdatedNew.oh IS NULL))"
+                "DELETE FROM TopicsUpdated WHERE TopicsUpdated.nh IN" +
+                        " (SELECT TopicsUpdated.nh FROM TopicsUpdated" +
+                        " LEFT JOIN temp.TopicsUpdatedNew" +
+                        " ON (TopicsUpdated.nh = temp.TopicsUpdatedNew.nh OR TopicsUpdated.oh = temp.TopicsUpdatedNew.oh)" +
+                        " WHERE (temp.TopicsUpdatedNew.nh IS NULL OR temp.TopicsUpdatedNew.oh IS NULL))"
             )
-        connection.createStatement().execute("DROP TABLE temp.ClientsUpdatedNew")
+        connection.createStatement().execute("DROP TABLE temp.TopicsUpdatedNew")
     }
 }
