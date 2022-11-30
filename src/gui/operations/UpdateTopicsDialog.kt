@@ -43,10 +43,10 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         setCurrentText("Получение данных с сервера...")
         if (cancelTaskIfRequested {})
             return
-        // TODO: 13.11.2022 обновлять хранителей
-        val keepersMap = keeperRetrofit.keepersUserData().execute().body()!!
-
+        // TODO: 13.11.2022 обновлять хранителей с форума
+        val keepersMap = keeperRetrofit.keepersUserData().execute().body()!!.keepers
         val torrentStatus = setOf(0, 2, 3, 8, 10)
+        val packSize = 1000
         if (cancelTaskIfRequested {})
             return
         val limit = keeperRetrofit.getLimit().execute().body()!!.limit
@@ -70,9 +70,25 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 val fullUpdateTopics = HashSet<FullUpdateTopic>()
                 val seedsUpdateTopics = HashSet<SeedsUpdateTopic>()
                 val topicsToQuery = HashMap<Int, List<Any>>()
+                val keepersSeeders = HashSet<Pair<Int, String>>() // номер темы и ник хранителя
+                var processedForumTorrents = 0
+                TorrentRepository.createTempKeepersSeeders()
                 for (forumTorrent in forumTorrents) {
+                    processedForumTorrents++
                     if (forumTorrent.value[0] !in torrentStatus)
                         continue
+                    if (forumTorrent.value[5] is List<*> && (forumTorrent.value[5] as List<*>).isNotEmpty()) {
+                        for (keeperId in forumTorrent.value[5] as List<*>) {
+                            if (keeperId !is Int || keeperId == Settings.myKeeperId)
+                                continue
+                            if (keepersMap.containsKey(keeperId))
+                                keepersSeeders.add(forumTorrent.key to keepersMap[keeperId]!!)
+                        }
+                    }
+                    if (keepersSeeders.size > packSize || processedForumTorrents == forumTorrents.size){
+                        TorrentRepository.appendKeepersSeeders(keepersSeeders)
+                        keepersSeeders.clear()
+                    }
                     val inDb = forumTorrent.key in existingTopicsDates.keys
                     val needToQuery =
                         !inDb || forumTorrent.value[2] != existingTopicsDates[forumTorrent.key]
@@ -86,6 +102,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                                     TorrentRepository.appendSeedsUpdatedTopics(seedsUpdateTopics)
                                     TorrentRepository.appendFullUpdateTopics(fullUpdateTopics)
                                     TorrentRepository.commitTopics(subsection, false)
+                                    TorrentRepository.commitKeepersSeeders(false)
                                 })
                                 return
                             requestTorrentTopicsData(topicsToQuery, fullUpdateTopics)
@@ -111,6 +128,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                             TorrentRepository.appendSeedsUpdatedTopics(seedsUpdateTopics)
                             TorrentRepository.appendFullUpdateTopics(fullUpdateTopics)
                             TorrentRepository.commitTopics(subsection, false)
+                            TorrentRepository.commitKeepersSeeders(false)
                         })
                         return
                     requestTorrentTopicsData(topicsToQuery, fullUpdateTopics)
@@ -120,6 +138,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 TorrentRepository.appendSeedsUpdatedTopics(seedsUpdateTopics)
                 TorrentRepository.appendFullUpdateTopics(fullUpdateTopics)
                 TorrentRepository.commitTopics(subsection, true)
+                TorrentRepository.commitKeepersSeeders(true)
                 println("Обновление подраздела $subsection успешно завершено")
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -129,6 +148,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             }
         }
     }
+
 
     fun requestTorrentTopicsData(
         topicsToQuery: Map<Int, List<Any>>,
@@ -223,8 +243,6 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                             if (currentTorrent.topicId != TorrentClientTorrent.TOPIC_THIRD_PARTY) {
                                 // комментарий содержит тему, но хэша нет в базе
                                 noDbTopics[currentTorrent.hash] = currentTorrent.topicId
-
-                                // TODO: 09.11.2022 обработка случая, когда раздача закрыта
                             } else {
                                 // тема не с рутрекера
                                 // TODO: 10.11.2022 и что с ней делать?
@@ -262,7 +280,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                             if (untrackedTopicsIds.size == topicInfoRequestLimit || noDbTopicsProcessed == noDbTopics.size && untrackedTopicsIds.isNotEmpty()) {
                                 if (cancelTaskIfRequested {
                                         TorrentRepository.commitTorrentsFromClient(torrentClientItem.key, false)
-                                        TorrentRepository.updateTopicsUpdated(updatedTopicsHashes,false)
+                                        TorrentRepository.updateTopicsUpdated(updatedTopicsHashes, false)
                                         TorrentRepository.commitUntrackedTopics(false)
                                         TorrentRepository.commitUnregisteredTopics(false)
                                     }) return
@@ -316,6 +334,10 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         TorrentRepository.commitUntrackedTopics(true)
         TorrentRepository.commitUnregisteredTopics(true)
         TorrentRepository.updateTopicsUpdated(updatedTopicsHashes, true)
+    }
+
+    fun updateKeepersSeeders() {
+
     }
 
     fun <T, E> Map<T, E>.getKeysByValue(value: E): Set<T> {

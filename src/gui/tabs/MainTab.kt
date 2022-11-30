@@ -585,7 +585,7 @@ class MainTab : JPanel(GridBagLayout()) {
             // начинаем обработку первой раздачи
             if (currentTorrentTableItem == null) {
                 currentTorrentTableItem = UpdatedTorrentTableItem.fromUpdatedTorrentItem(torrentItem)
-            } else if (torrentItem.oldHash == currentTorrentTableItem.oldHash && torrentItem.clientId == torrentItem.clientId) {
+            } else if (torrentItem.oldHash == currentTorrentTableItem.oldHash) {
                 torrentItem.torrentItem.keeper?.let { currentTorrentTableItem!!.keepers.add(it) }
             } else {
                 // если айдишники разные, начинаем новую раздачу

@@ -52,7 +52,7 @@ object TorrentRepository {
     fun getUpdatedTopics(): Iterator<UpdatedTorrentItem> {
         // TODO: 26.11.2022 а нужны ли нам тут фильтры?
         val query =
-            "SELECT Topics.id,na,rg,se,Keepers.nick,complete,KeepersSeeders.nick,TopicsUpdated.cl, oh, nh FROM Topics" +
+            "SELECT Topics.id,na,rg,se,Keepers.nick,complete,KeepersSeeders.nick, oh, nh FROM Topics" +
                     " LEFT OUTER JOIN Keepers ON Topics.id = Keepers.id" +
                     " LEFT OUTER JOIN KeepersSeeders ON Topics.id = KeepersSeeders.topic_id" +
                     " INNER JOIN TopicsUpdated ON TopicsUpdated.nh = Topics.hs"
@@ -70,10 +70,9 @@ object TorrentRepository {
                     resultSet.getInt(4),
                     keeperItem
                 )
-                val clientId = resultSet.getInt(8)
-                val oldHash = resultSet.getString(9)
-                val newHash = resultSet.getString(10)
-                return UpdatedTorrentItem(clientId, oldHash, newHash, torrentItem)
+                val oldHash = resultSet.getString(8)
+                val newHash = resultSet.getString(9)
+                return UpdatedTorrentItem(oldHash, newHash, torrentItem)
             }
         }
     }
@@ -532,4 +531,42 @@ object TorrentRepository {
             )
         connection.createStatement().execute("DROP TABLE temp.TopicsUpdatedNew")
     }
+
+    fun createTempKeepersSeeders() {
+        connection.createStatement().execute(
+            "CREATE TEMPORARY TABLE KeepersSeedersNew AS" +
+                    " SELECT topic_id,nick FROM KeepersSeeders" +
+                    " LIMIT 0"
+        )
+    }
+
+    fun appendKeepersSeeders(keepersSeeders: Set<Pair<Int, String>>) {
+        if (keepersSeeders.isEmpty())
+            return
+        val statement = connection.prepareStatement(
+            "INSERT INTO temp.KeepersSeedersNew (topic_id,nick)" +
+                    " VALUES (?,?)"
+        )
+        for (keeperSeeder in keepersSeeders) {
+            statement.setInt(1, keeperSeeder.first)
+            statement.setString(2, keeperSeeder.second)
+            statement.addBatch()
+        }
+        statement.executeBatch()
+    }
+
+    fun commitKeepersSeeders(deleteOther: Boolean) {
+        connection.createStatement()
+            .execute("INSERT INTO KeepersSeeders(topic_id,nick) SELECT topic_id,nick FROM temp.KeepersSeedersNew")
+
+        if (deleteOther)
+            connection.createStatement().execute(
+                "DELETE FROM KeepersSeeders WHERE topic_id || nick NOT IN (" +
+                        " SELECT KeepersSeeders.topic_id || KeepersSeeders.nick FROM temp.KeepersSeedersNew" +
+                        " LEFT JOIN KeepersSeeders ON temp.KeepersSeedersNew.topic_id = KeepersSeeders.topic_id AND temp.KeepersSeedersNew.nick = KeepersSeeders.nick" +
+                        " WHERE KeepersSeeders.topic_id IS NOT NULL)"
+            )
+        connection.createStatement().execute("DROP TABLE temp.KeepersSeedersNew")
+    }
+
 }

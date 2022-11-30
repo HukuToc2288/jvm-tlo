@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 
 class ForumTopicsInfo(
     @JsonProperty("total_size_bytes") val totalSize: Long,
-    @JsonProperty("result") val result: HashMap<Int,List<Any>>
+    //  "tor_status", "seeders", "reg_time", "tor_size_bytes", "keeping_priority", "keepers", "seeder_last_seen", "info_hash"
+    @JsonProperty("result") val result: HashMap<Int, List<Any>>
 ) {
 }

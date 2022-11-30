@@ -12,6 +12,8 @@ object Settings : IniPreferences(FileInputStream("files/config.ini")) {
 
     // TODO: 03.11.2022 создавать файл если его нет
 
+    val myKeeperId: Int? = node("torrent-tracker")["user_id",null]?.unquote()?.toInt()
+
     fun getTorrentClients(): Map<Int,AbstractTorrentClient> {
         val torrentClientsCount = Settings.node("other")["qt", "0"].unquote().toInt()
         val torrentClients = HashMap<Int,AbstractTorrentClient>()
