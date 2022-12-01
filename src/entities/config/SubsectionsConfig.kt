@@ -1,5 +1,5 @@
 package entities.config
 
 class SubsectionsConfig(
-    var subsections: MutableMap<Int,SubsectionsConfigSubsection> = HashMap()
+    var subsections: MutableList<SubsectionsConfigSubsection> = ArrayList()
 )

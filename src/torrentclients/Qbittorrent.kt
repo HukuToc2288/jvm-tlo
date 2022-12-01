@@ -18,14 +18,14 @@ import java.util.concurrent.TimeUnit
 class Qbittorrent(
     name: String,
     baseUrl: String,
-    login: String,
-    password: String
-) : AbstractTorrentClient(name, baseUrl, login, password) {
+    login: String?,
+    password: String?
+) : AbstractTorrentClient(name, TorrentClientTypes.QBITTORRENT, baseUrl, login, password) {
 
     private val cookieJar = SingleUrlCookieJar()
     private val SESSION_COOKIE_NAME = "SID"
 
-    val api = Retrofit.Builder()
+    private val api = Retrofit.Builder()
         .baseUrl("${baseUrl}api/")
         .addConverterFactory(ScalarsConverterFactory.create())
         .addConverterFactory(JacksonConverterFactory.create(ObjectMapper().apply {

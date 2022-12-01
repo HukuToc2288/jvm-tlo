@@ -1,5 +1,6 @@
 package db
 
+import entities.config.SubsectionsConfigSubsection
 import entities.db.*
 import entities.keeper.ForumTorrentTopicsData
 import entities.torrentclient.TorrentClientTorrent
@@ -316,10 +317,12 @@ object TorrentRepository {
     }
 
     // достаём хэши, но только в нужных подразделах
-    fun getTopicHashesByIdsInSubsections(ids: Collection<Int>, subsections: Collection<Int>): Map<Int, String> {
+    fun getTopicHashesByIdsInSubsections(ids: Collection<Int>, subsections: Collection<SubsectionsConfigSubsection>): Map<Int, String> {
         val resultSet = connection.createStatement().executeQuery(
             "SELECT id,hs FROM Topics" +
-                    " WHERE ss IN (${subsections.joinToString(",")})" +
+                    " WHERE ss IN (${subsections.joinToString(","){
+                        it.id.toString()
+                    }})" +
                     " AND id IN (${ids.joinToString(",")})"
         )
         val existingIds = HashMap<Int, String>()

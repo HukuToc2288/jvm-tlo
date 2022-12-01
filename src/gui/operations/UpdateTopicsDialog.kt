@@ -48,7 +48,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             return
         val limit = keeperRetrofit.getLimit().execute().body()!!.limit
         for (subsectionEntry in ConfigRepository.subsections) {
-            val subsection = subsectionEntry.key
+            val subsection = subsectionEntry.id
             if (!TorrentRepository.shouldUpdate(subsection)) {
                 println("Notice: Не требуется обновление для подраздела № $subsection")
                 continue
@@ -254,7 +254,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                         // хэши раздач, которые находятся в хранимых подразделах
                         val keepingUpdatedTopics = TorrentRepository.getTopicHashesByIdsInSubsections(
                             noDbTopics.values,
-                            ConfigRepository.subsections.keys
+                            ConfigRepository.subsections
                         )
                         var noDbTopicsProcessed = 0
                         var yes = 0
