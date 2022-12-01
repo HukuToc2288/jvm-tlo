@@ -40,7 +40,7 @@ private fun initConfig() {
             is FileNotFoundException -> "Файл конфигурации отсутствует и не может быть создан, либо недоступен! Проверьте права доступа"
             is JsonProcessingException -> "Файл конфигурации испорчен! Исправьте ошибки или удалите файл (будут сброшены все настройки)"
             is IOException -> "Файл конфигурации не может быть прочитан! Проверьте права доступа"
-            else -> "Неизвестная ошибка:"
+            else -> "Ошибка загрузки конфигурации"
         }
         message += "\n\n" + e.localizedMessage
         JOptionPane.showMessageDialog(null,message,"Ошибка конфигурации",JOptionPane.ERROR_MESSAGE)
