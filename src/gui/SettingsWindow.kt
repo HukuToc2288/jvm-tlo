@@ -1,14 +1,12 @@
 package gui
 
-import api.forumRetrofit
 import api.rebuildForumApi
 import gui.settings.AuthSettingsTab
 import gui.settings.ProxyTab
-import gui.tabs.MainTab
+import gui.settings.SubsectionsTab
 import utils.ConfigRepository
 import java.awt.Dimension
 import javax.swing.*
-import javax.swing.border.EmptyBorder
 import java.awt.event.WindowEvent
 
 import java.awt.event.WindowAdapter
@@ -37,6 +35,7 @@ class SettingsWindow : JFrame("Настройки JVM-TLO") {
             "Прокси",
             proxyTab
         )
+        tabbedPane.addTab("Хранимые подразделы", SubsectionsTab())
         tabbedPane.addChangeListener {
             if (shouldRebuildRetrofits) {
                 proxyTab.saveSettings()
