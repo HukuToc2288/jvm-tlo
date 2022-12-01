@@ -218,7 +218,7 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         add(statusText, constraints)
 
         constraints.gridx = 1
-        constraints.weightx = 0.0
+        //constraints.weightx = 0.0
         add(cancelButton, constraints)
     }
 
