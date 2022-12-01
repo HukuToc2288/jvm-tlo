@@ -1,8 +1,14 @@
 package gui
 
+import com.fasterxml.jackson.core.JsonParseException
+import com.fasterxml.jackson.core.JsonProcessingException
+import com.fasterxml.jackson.databind.JsonMappingException
 import gui.tabs.MainTab
+import utils.ConfigRepository
 
 import java.awt.Dimension
+import java.io.FileNotFoundException
+import java.io.IOException
 import java.lang.Exception
 import javax.swing.*
 
@@ -10,6 +16,7 @@ import javax.swing.JPanel
 
 import javax.swing.JComponent
 import javax.swing.UIManager
+import kotlin.system.exitProcess
 
 
 fun main(args: Array<String>) {
@@ -20,13 +27,31 @@ fun main(args: Array<String>) {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
         } catch (e: Exception) {
         }
+        initConfig()
         createAndShowGUI()
+    }
+}
+
+private fun initConfig() {
+    try {
+        ConfigRepository.read()
+    } catch (e: Exception) {
+        var message = when (e) {
+            is FileNotFoundException -> "Файл конфигурации отсутствует и не может быть создан, либо недоступен! Проверьте права доступа"
+            is JsonProcessingException -> "Файл конфигурации испорчен! Исправьте ошибки или удалите файл (будут сброшены все настройки)"
+            is IOException -> "Файл конфигурации не может быть прочитан! Проверьте права доступа"
+            else -> "Неизвестная ошибка:"
+        }
+        message += "\n\n" + e.localizedMessage
+        JOptionPane.showMessageDialog(null,message,"Ошибка конфигурации",JOptionPane.ERROR_MESSAGE)
+        exitProcess(1)
     }
 }
 
 private fun createAndShowGUI() {
     //Create and set up the window.
     val frame = JFrame("JVM-TLO")
+    initConfig()
     frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
 
     //Add content to the window.

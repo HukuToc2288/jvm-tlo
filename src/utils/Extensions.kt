@@ -17,3 +17,7 @@ fun Component.deepSetEnabled(enabled: Boolean) {
         isEnabled = enabled
     }
 }
+
+public inline fun perrorln(message: Any?) {
+    System.err.println(message)
+}
