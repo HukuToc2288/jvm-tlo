@@ -8,9 +8,8 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import retrofit2.http.Url
+import utils.ConfigRepository
 import utils.ResetBackgroundListener
-import utils.Settings
-import utils.unquote
 import java.awt.*
 import java.lang.Exception
 import java.net.URL
@@ -149,8 +148,8 @@ class AuthSettingsTab : JPanel(GridBagLayout()) {
         constraints.anchor = GridBagConstraints.NORTH
         add(authStatusLabel, constraints)
 
-        loginField.text = Settings.node("torrent-tracker")["login", ""].unquote()
-        passwordField.text = Settings.node("torrent-tracker")["password", ""].unquote()
+        loginField.text = ConfigRepository.trackerConfig.login
+        passwordField.text = ConfigRepository.trackerConfig.password
     }
 
     private fun showAuthStatus(message: String, color: String? = null) {

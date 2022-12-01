@@ -1,11 +1,11 @@
 package api
 
+import entities.config.ProxyConfigProxy
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.scalars.ScalarsConverterFactory
-import utils.Settings
-import utils.unquote
+import utils.ConfigRepository
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.*
@@ -19,33 +19,34 @@ var forumRetrofit = createForumApi()
     private set
 
 private fun createForumApi(): ForumApi {
-    val clientBuildr = OkHttpClient.Builder()
+    val clientBuilder = OkHttpClient.Builder()
         .addInterceptor(UserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"))
         .addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
         .cookieJar(forumCookieJar)
-    val proxySettings = Settings.node("proxy")
 
-    Settings.node("proxy").let {
-        if (proxySettings["activate_forum", "0"].unquote() == "1") {
+    with(ConfigRepository.proxyConfig) {
+        if (proxyForum) {
+            // TODO: 01.12.2022 поддержка нескольких прокси
+            val selectedProxy = proxies[0]
             val proxyType =
-                if (it["type", "HTTP"].unquote()?.uppercase(Locale.getDefault())?.contains("SOCKS") == true) {
+                if (selectedProxy.type == ProxyConfigProxy.ProxyType.SOCKS5) {
                     Proxy.Type.SOCKS
                 } else {
                     Proxy.Type.HTTP
                 }
             val proxy = Proxy(
                 proxyType, InetSocketAddress(
-                    it["hostname", ""].unquote(),
-                    it["port", ""].unquote()?.toInt() ?: 0
+                    selectedProxy.hostname,
+                    selectedProxy.port
                 )
             )
-            clientBuildr.proxy(proxy)
+            clientBuilder.proxy(proxy)
         }
     }
     return Retrofit.Builder()
         .baseUrl("https://rutracker.org/forum/")
         .addConverterFactory(ScalarsConverterFactory.create())
-        .client(clientBuildr.build())
+        .client(clientBuilder.build())
         .build()
         .create(ForumApi::class.java)
 

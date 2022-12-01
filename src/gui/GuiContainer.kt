@@ -36,6 +36,7 @@ private fun initConfig() {
     try {
         ConfigRepository.read()
     } catch (e: Exception) {
+        e.printStackTrace()
         var message = when (e) {
             is FileNotFoundException -> "Файл конфигурации отсутствует и не может быть создан, либо недоступен! Проверьте права доступа"
             is JsonProcessingException -> "Файл конфигурации испорчен! Исправьте ошибки или удалите файл (будут сброшены все настройки)"

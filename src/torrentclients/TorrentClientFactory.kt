@@ -1,19 +1,14 @@
 package torrentclients
 
+import entities.config.TorrentClientConfig
+
 object TorrentClientFactory {
-    fun createFromSettings(
-        name: String,
-        client: String,
-        hostname: String,
-        port: Int,
-        login: String,
-        password: String,
-        ssl: Boolean
-    ): AbstractTorrentClient? {
-        val baseUrl = "http${if (ssl) "s" else ""}://$hostname:$port/"
-        return when (client) {
-            "qbittorrent" -> Qbittorrent(name, baseUrl, login, password)
-            else -> null
+    fun buildFromConfig(config: TorrentClientConfig): AbstractTorrentClient? {
+        with(config) {
+            return when (type) {
+                "qbittorrent" -> Qbittorrent(name, url, login, password)
+                else -> null
+            }
         }
     }
 }

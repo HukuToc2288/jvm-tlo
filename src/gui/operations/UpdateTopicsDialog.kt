@@ -5,9 +5,8 @@ import db.TorrentRepository
 import entities.db.FullUpdateTopic
 import entities.db.SeedsUpdateTopic
 import entities.torrentclient.TorrentClientTorrent
-import utils.Settings
+import utils.ConfigRepository
 import utils.pluralForum
-import utils.unquote
 import java.awt.Frame
 import kotlin.math.min
 
@@ -36,10 +35,8 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
     }
 
     fun updateSubsections() {
-        val subsections =
-            Settings.node("sections")["subsections", ""].unquote().split(',')
-        setFullProgress(0, subsections.size)
-        setFullText("Обновляются темы в ${subsections.size.pluralForum("подраздела", "подразделов")}")
+        setFullProgress(0, ConfigRepository.subsections.size)
+        setFullText("Обновляются темы в ${ConfigRepository.subsections.size.pluralForum("подраздела", "подразделов")}")
         setCurrentText("Получение данных с сервера...")
         if (cancelTaskIfRequested {})
             return
@@ -50,8 +47,8 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         if (cancelTaskIfRequested {})
             return
         val limit = keeperRetrofit.getLimit().execute().body()!!.limit
-        for (i in subsections.indices) {
-            val subsection = subsections[i].toInt()
+        for (subsectionEntry in ConfigRepository.subsections) {
+            val subsection = subsectionEntry.key
             if (!TorrentRepository.shouldUpdate(subsection)) {
                 println("Notice: Не требуется обновление для подраздела № $subsection")
                 continue
@@ -79,13 +76,13 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                         continue
                     if (forumTorrent.value[5] is List<*> && (forumTorrent.value[5] as List<*>).isNotEmpty()) {
                         for (keeperId in forumTorrent.value[5] as List<*>) {
-                            if (keeperId !is Int || keeperId == Settings.myKeeperId)
+                            if (keeperId !is Int || keeperId == ConfigRepository.trackerConfig.keeperId)
                                 continue
                             if (keepersMap.containsKey(keeperId))
                                 keepersSeeders.add(forumTorrent.key to keepersMap[keeperId]!!)
                         }
                     }
-                    if (keepersSeeders.size > packSize || processedForumTorrents == forumTorrents.size){
+                    if (keepersSeeders.size > packSize || processedForumTorrents == forumTorrents.size) {
                         TorrentRepository.appendKeepersSeeders(keepersSeeders)
                         keepersSeeders.clear()
                     }
@@ -181,7 +178,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
     fun updateTopicsFromClient() {
         // TODO: 11.11.2022 всё вроде работает, но очень странно, что вот так наскоком всё получилось
         //  проверить, что точно всё правильно, и никакие пограничные случаи не пропущены
-        val torrentClients = Settings.getTorrentClients()
+        val torrentClients = ConfigRepository.torrentClients
         TorrentRepository.createTempUntrackedTopics()
         TorrentRepository.createTempUnregisteredTopics()
         setFullText("Получение раздач из ${torrentClients.size.pluralForum("торрент-клиента", "торрент-клиентов")}")
@@ -215,7 +212,6 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 val noDbTopics = HashMap<String, Int>()
                 val untrackedTopicsIds = ArrayList<Int>()
                 val unregisteredTopics = HashMap<String, Int>()    // хэш который в клиенте и номер темы
-                val keepingSubsectionsString = Settings.node("sections")["subsections", ""].unquote()
                 // берём пачками, т.к. от нескольких десятков тысяч торрентов может кончиться память
                 val packSize = 1000
                 var topicInfoRequestLimit = -1
@@ -258,7 +254,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                         // хэши раздач, которые находятся в хранимых подразделах
                         val keepingUpdatedTopics = TorrentRepository.getTopicHashesByIdsInSubsections(
                             noDbTopics.values,
-                            keepingSubsectionsString
+                            ConfigRepository.subsections.keys
                         )
                         var noDbTopicsProcessed = 0
                         var yes = 0

@@ -1,5 +1,6 @@
 package entities.config
 
+
 class ProxyConfigProxy(
     var type: ProxyType,
     var hostname: String,
@@ -8,6 +9,6 @@ class ProxyConfigProxy(
     var password: String? = null
 ) {
     enum class ProxyType {
-        HTTP, HTTPS, SOCKS4, SOCKS5
+        HTTP, HTTPS, SOCKS4, SOCKS5;
     }
 }

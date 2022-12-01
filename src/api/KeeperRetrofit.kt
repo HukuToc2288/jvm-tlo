@@ -2,15 +2,14 @@ package api
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
+import entities.config.ProxyConfigProxy
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.jackson.JacksonConverterFactory
-import utils.Settings
-import utils.unquote
+import utils.ConfigRepository
 import java.net.InetSocketAddress
 import java.net.Proxy
-import java.util.*
 
 val keeperCookieJar = SingleUrlCookieJar()
 
@@ -20,23 +19,24 @@ var keeperRetrofit = createKeeperApi()
 private fun createKeeperApi(): KeeperApi {
     val clientBuilder = OkHttpClient.Builder()
         .addInterceptor(UserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"))
-        .addInterceptor(ApiKeyInterceptor(Settings.node("torrent-tracker")["api_key",""]))
+        .addInterceptor(ApiKeyInterceptor(ConfigRepository.trackerConfig.apiKey))
         .addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BASIC))
         .cookieJar(keeperCookieJar)
-    val proxySettings = Settings.node("proxy")
 
-    Settings.node("proxy").let {
-        if (proxySettings["activate_api", "0"].unquote() == "1") {
+    with(ConfigRepository.proxyConfig) {
+        if (proxyApi) {
+            // TODO: 01.12.2022 поддержка нескольких прокси
+            val selectedProxy = proxies[0]
             val proxyType =
-                if (it["type", "HTTP"].unquote()?.uppercase(Locale.getDefault())?.contains("SOCKS") == true) {
+                if (selectedProxy.type == ProxyConfigProxy.ProxyType.SOCKS5) {
                     Proxy.Type.SOCKS
                 } else {
                     Proxy.Type.HTTP
                 }
             val proxy = Proxy(
                 proxyType, InetSocketAddress(
-                    it["hostname", ""].unquote(),
-                    it["port", ""].unquote()?.toInt() ?: 0
+                    selectedProxy.hostname,
+                    selectedProxy.port
                 )
             )
             clientBuilder.proxy(proxy)

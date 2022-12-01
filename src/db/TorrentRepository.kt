@@ -316,10 +316,10 @@ object TorrentRepository {
     }
 
     // достаём хэши, но только в нужных подразделах
-    fun getTopicHashesByIdsInSubsections(ids: Collection<Int>, subsections: String): Map<Int, String> {
+    fun getTopicHashesByIdsInSubsections(ids: Collection<Int>, subsections: Collection<Int>): Map<Int, String> {
         val resultSet = connection.createStatement().executeQuery(
             "SELECT id,hs FROM Topics" +
-                    " WHERE ss IN ($subsections)" +
+                    " WHERE ss IN (${subsections.joinToString(",")})" +
                     " AND id IN (${ids.joinToString(",")})"
         )
         val existingIds = HashMap<Int, String>()

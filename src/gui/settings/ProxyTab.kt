@@ -1,5 +1,6 @@
 package gui.settings
 
+import entities.config.ProxyConfigProxy
 import utils.*
 import java.awt.Color
 import java.awt.GridBagConstraints
@@ -11,15 +12,11 @@ import javax.swing.*
 import kotlin.math.log
 
 class ProxyTab : JPanel(GridBagLayout()) {
-    val errorBackground = Color(255, 0, 0, 191)
-
-    // TODO: 03.11.2022 socks5 proxy in okhttp?
-    val proxyTypes = arrayOf("HTTP", "SOCKS")
 
     val proxyForumCheckbox = JCheckBox("Проксировать форум")
     val proxyApiCheckbox = JCheckBox("Проксировать API")
 
-    val proxyTypeSelector = JComboBox(proxyTypes)
+    val proxyTypeSelector = JComboBox<ProxyConfigProxy.ProxyType>(ProxyConfigProxy.ProxyType.values())
     val hostField = JTextField().apply {
         columns = 20
         document.addDocumentListener(ResetBackgroundListener(this))
@@ -86,37 +83,31 @@ class ProxyTab : JPanel(GridBagLayout()) {
         constraints.gridy = 6
         add(passwordField, constraints)
 
-        Settings.node("proxy").let {
-            // TODO: 03.11.2022 set it by default to 1
-            proxyForumCheckbox.isSelected = it["activate_forum", "0"].unquote() == "1"
-            proxyApiCheckbox.isSelected = it["activate_api", "0"].unquote() == "1"
-            proxyTypeSelector.selectedIndex =
-                if (it["type", "HTTP"].unquote()?.uppercase(Locale.getDefault())?.contains("SOCKS") == true) {
-                    1
-                } else {
-                    0
-                }
-            hostField.text = it["hostname", ""].unquote()
-            portField.text = it["port", ""].unquote()
-            loginField.text = it["login", ""].unquote()
-            passwordField.text = it["password", ""].unquote()
+        with(ConfigRepository.proxyConfig){
+            proxyForumCheckbox.isSelected = proxyForum
+            proxyApiCheckbox.isSelected = proxyApi
+            val proxy = proxies[0]
+            proxyTypeSelector.selectedItem = proxy.type
+            hostField.text = proxy.hostname
+            portField.text = proxy.port.toString()
+            loginField.text = proxy.login
+            passwordField.text = proxy.password
         }
     }
 
     fun saveSettings() {
-        with(Settings.node("proxy")) {
-            put("activate_forum", proxyForumCheckbox.isSelected.toZeroOne())
-            put("activate_api", proxyApiCheckbox.isSelected.toZeroOne())
-            put(
-                "type", when (proxyTypeSelector.selectedIndex) {
-                    0 -> "http"
-                    else -> "socks5h"
-                }.quote()
-            )
-            put("hostname", hostField.text.quote())
-            put("port", portField.text.quote())
-            put("login", loginField.text.quote())
-            put("password", passwordField.text.quote())
+        with(ConfigRepository.proxyConfig){
+            proxyForum = proxyForumCheckbox.isSelected
+            proxyApi = proxyApiCheckbox.isSelected
+
+            val proxy = proxies[0]
+            with(proxy){
+                type = proxyTypeSelector.selectedItem as ProxyConfigProxy.ProxyType
+                hostname = hostField.text
+                port = portField.text.toInt()
+                login = loginField.text.toString()
+                password = passwordField.text.toString()
+            }
         }
     }
 }
