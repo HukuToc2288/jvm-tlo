@@ -10,6 +10,7 @@ import java.lang.StringBuilder
 import java.sql.DriverManager
 import java.sql.ResultSet
 import java.util.*
+import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import kotlin.math.min
 
@@ -317,12 +318,17 @@ object TorrentRepository {
     }
 
     // достаём хэши, но только в нужных подразделах
-    fun getTopicHashesByIdsInSubsections(ids: Collection<Int>, subsections: Collection<SubsectionsConfigSubsection>): Map<Int, String> {
+    fun getTopicHashesByIdsInSubsections(
+        ids: Collection<Int>,
+        subsections: Collection<SubsectionsConfigSubsection>
+    ): Map<Int, String> {
         val resultSet = connection.createStatement().executeQuery(
             "SELECT id,hs FROM Topics" +
-                    " WHERE ss IN (${subsections.joinToString(","){
-                        it.id.toString()
-                    }})" +
+                    " WHERE ss IN (${
+                        subsections.joinToString(",") {
+                            it.id.toString()
+                        }
+                    })" +
                     " AND id IN (${ids.joinToString(",")})"
         )
         val existingIds = HashMap<Int, String>()
@@ -572,4 +578,27 @@ object TorrentRepository {
         connection.createStatement().execute("DROP TABLE temp.KeepersSeedersNew")
     }
 
+    fun findSubsections(phrase: String, maxCount: Int): List<SubsectionSearchItem> {
+        // прибавляем 1 чтобы знать, есть ли ещё элементы
+        val statement =
+            connection.prepareStatement("select id,na from Forums where na like ? or id like ? limit ${maxCount + 1}")
+        val escapedPhrase = "%${
+            phrase.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
+                .toLowerCase()
+        }%"
+        statement.setString(
+            1, escapedPhrase
+        )
+        statement.setString(
+            2, escapedPhrase
+        )
+        val resultSet = statement.executeQuery()
+        val subsections = ArrayList<SubsectionSearchItem>()
+        while (resultSet.next()) {
+            subsections.add(SubsectionSearchItem(resultSet.getInt(1), resultSet.getString(2)))
+        }
+        return subsections
+    }
 }

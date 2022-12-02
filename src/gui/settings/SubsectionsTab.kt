@@ -1,15 +1,69 @@
 package gui.settings
 
+import db.TorrentRepository
 import entities.config.SubsectionsConfigSubsection
+import entities.db.SubsectionSearchItem
 import torrentclients.AbstractTorrentClient
 import utils.ConfigRepository
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
-import java.awt.Insets
+import java.awt.*
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import java.net.URL
 import javax.swing.*
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 
 class SubsectionsTab : JPanel(GridBagLayout()) {
 
+    val subsectionsSuggestionsCount = 10
+
+    val subsectionsAddField: JTextField = object : JTextField() {
+
+        val popupMenu = JPopupMenu()
+
+        init {
+            document.addDocumentListener(object : DocumentListener {
+                override fun insertUpdate(p0: DocumentEvent?) {
+                    suggestSubsections()
+                }
+
+                override fun removeUpdate(p0: DocumentEvent?) {
+                    suggestSubsections()
+                }
+
+                override fun changedUpdate(p0: DocumentEvent?) {
+                    suggestSubsections()
+                }
+            })
+        }
+
+        fun suggestSubsections() {
+            popupMenu.isVisible = false
+            if (text.isEmpty()) {
+                return
+            }
+            val subsections = TorrentRepository.findSubsections(text, subsectionsSuggestionsCount)
+            popupMenu.removeAll()
+            for (i in subsections.indices) {
+                if (i >= subsectionsSuggestionsCount) {
+                    val menuItem = JMenuItem("Показаны первые $subsectionsSuggestionsCount подразделов").apply {
+                        isEnabled = false
+                    }
+                    popupMenu.add(menuItem)
+                    break
+                }
+                val menuItem = JMenuItem("${subsections[i].id}: ${subsections[i].name}").apply {
+                    addActionListener {
+                        // TODO: 02.12.2022 enter not working
+                        println(this@apply.label)
+                    }
+                }
+                popupMenu.add(menuItem)
+            }
+            popupMenu.show(this, 0, this.size.height)
+            requestFocus()
+        }
+    }
     val subsectionSelector = JComboBox<SubsectionsConfigSubsection>().apply {
     }
     val torrentClientSelector = JComboBox<TorrentClientSelectorItem>()
@@ -28,6 +82,9 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         constraints.insets = Insets(2, 2, 2, 2)
         constraints.gridy = 0
         constraints.anchor = GridBagConstraints.WEST
+        add(JLabel("Добавить подраздел"), constraints)
+
+        constraints.gridy++
         add(JLabel("Подраздел:"), constraints)
 
         constraints.gridy++
@@ -44,6 +101,9 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         constraints.gridy = 0
         constraints.fill = GridBagConstraints.HORIZONTAL
         constraints.weightx = 2.0
+        add(subsectionsAddField, constraints)
+
+        constraints.gridy++
         add(subsectionSelector, constraints)
 
         constraints.gridy++

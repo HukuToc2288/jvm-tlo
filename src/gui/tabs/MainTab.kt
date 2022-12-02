@@ -659,7 +659,7 @@ class MainTab : JPanel(GridBagLayout()) {
             noDownloadedCheckbox.isSelected,
             hasDownloadedCheckbox.isSelected,
             noSeedersCheckbox.isSelected,
-            hasSeedersCheckbox.isSelected,
+            hasSeedersCheckbox.isSelected
         )
         val torrentsFromDb = TorrentRepository.getKeepingForums(torrentFilter)
         val model = torrentsTable.model as TorrentTableModel
@@ -742,6 +742,7 @@ class MainTab : JPanel(GridBagLayout()) {
 
                 keeperRetrofit.forumSize().enqueue(object : Callback<ForumSize> {
                     override fun onResponse(call: Call<ForumSize>, response: Response<ForumSize>) {
+                        // TODO: 02.12.2022 не отбрасываются форумы с нулём раздач
                         val forumSize = response.body()!!
                         // всё получили, создаём список
                         val forumList = HashMap<Int, ForumItem>()
