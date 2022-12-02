@@ -17,6 +17,7 @@ class SettingsWindow : JFrame("Настройки JVM-TLO") {
 
     var shouldRebuildRetrofits = false
     val proxyTab = ProxyTab()
+    val subsectionsTab = SubsectionsTab()
 
     init {
         val tabbedPane = JTabbedPane()
@@ -27,22 +28,10 @@ class SettingsWindow : JFrame("Настройки JVM-TLO") {
         add(mainPanel)
 
         mainPanel.add(tabbedPane)
-        tabbedPane.addTab(
-            "Авторизация",
-            AuthSettingsTab()
-        )
-        tabbedPane.addTab(
-            "Прокси",
-            proxyTab
-        )
-        tabbedPane.addTab("Хранимые подразделы", SubsectionsTab())
+        tabbedPane.addTab("Авторизация", AuthSettingsTab())
+        tabbedPane.addTab("Прокси", proxyTab)
+        tabbedPane.addTab("Хранимые подразделы", subsectionsTab)
         tabbedPane.addChangeListener {
-            if (shouldRebuildRetrofits) {
-                proxyTab.saveSettings()
-                rebuildForumApi()
-                shouldRebuildRetrofits = false
-                return@addChangeListener
-            }
             if (tabbedPane.selectedIndex == 1) {
                 // обновим настройки прокси при покидании этой вкладки
                 shouldRebuildRetrofits = true
@@ -54,6 +43,13 @@ class SettingsWindow : JFrame("Настройки JVM-TLO") {
 
         addWindowListener(object : WindowAdapter() {
             override fun windowClosing(e: WindowEvent) {
+                // сохраняем несохранённые изменения в текущий конфиг
+                if (shouldRebuildRetrofits) {
+                    proxyTab.saveSettings()
+                    rebuildForumApi()
+                }
+                subsectionsTab.updateCurrentSubsection()
+                // записываем в постоянную память
                 tryWriteConfig()
                 e.window.dispose()
             }

@@ -14,7 +14,7 @@ import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import kotlin.math.min
 
-
+// FIXME: 03.12.2022 SQLite не умеет искать строки без учёта регистра для нелатинских букв, ужас!
 object TorrentRepository {
 
     // FIXME: 04.11.2022 в финальной версии это число должно быть >= 3600

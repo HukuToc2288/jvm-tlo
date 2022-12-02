@@ -3,9 +3,11 @@ package gui.settings
 import db.TorrentRepository
 import entities.config.SubsectionsConfigSubsection
 import entities.db.SubsectionSearchItem
+import entities.misc.MainTabSpinnerItem
 import torrentclients.AbstractTorrentClient
 import utils.ConfigRepository
 import java.awt.*
+import java.awt.event.ItemEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.net.URL
@@ -16,6 +18,7 @@ import javax.swing.event.DocumentListener
 class SubsectionsTab : JPanel(GridBagLayout()) {
 
     val subsectionsSuggestionsCount = 10
+    var selectedSubsection: SubsectionsConfigSubsection? = null
 
     val subsectionsAddField: JTextField = object : JTextField() {
 
@@ -45,6 +48,7 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
             val subsections = TorrentRepository.findSubsections(text, subsectionsSuggestionsCount)
             popupMenu.removeAll()
             for (i in subsections.indices) {
+                val subsection = subsections[i]
                 if (i >= subsectionsSuggestionsCount) {
                     val menuItem = JMenuItem("Показаны первые $subsectionsSuggestionsCount подразделов").apply {
                         isEnabled = false
@@ -52,10 +56,21 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
                     popupMenu.add(menuItem)
                     break
                 }
-                val menuItem = JMenuItem("${subsections[i].id}: ${subsections[i].name}").apply {
+                val menuItem = JMenuItem("${subsection.id}: ${subsection.name}").apply {
                     addActionListener {
                         // TODO: 02.12.2022 enter not working
                         println(this@apply.label)
+                        val subsectionsConfigSubsection = SubsectionsConfigSubsection(
+                            subsection.id,
+                            subsection.name,
+                            1,
+                            "",
+                            "",
+                            false
+                        )
+                        ConfigRepository.subsections.add(subsectionsConfigSubsection)
+                        subsectionSelector.addItem(subsectionsConfigSubsection)
+                        subsectionSelector.selectedItem = subsectionsConfigSubsection
                     }
                 }
                 popupMenu.add(menuItem)
@@ -65,6 +80,28 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         }
     }
     val subsectionSelector = JComboBox<SubsectionsConfigSubsection>().apply {
+        addItemListener { event ->
+            if (event.stateChange == ItemEvent.SELECTED) {
+                updateCurrentSubsection()
+                val selectedItem = this.selectedItem as SubsectionsConfigSubsection?
+                selectedSubsection = selectedItem
+                selectedItem ?: return@addItemListener
+                if (ConfigRepository.torrentClients.containsKey(selectedItem.clientId)) {
+                    for (i in 1 until torrentClientSelector.itemCount) {
+                        val item = torrentClientSelector.getItemAt(i) as TorrentClientSelectorItem
+                        if (item.id == selectedItem.clientId) {
+                            torrentClientSelector.selectedIndex = i
+                            break
+                        }
+                    }
+                } else {
+                    torrentClientSelector.selectedIndex = 0
+                }
+
+                categoryNameField.text = selectedItem.category
+                downloadDirectoryField.text = selectedItem.dataFolder
+            }
+        }
     }
     val torrentClientSelector = JComboBox<TorrentClientSelectorItem>()
     val categoryNameField = JTextField()
@@ -127,14 +164,11 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         constraints.weightx = 0.0
         add(deleteButton, constraints)
 
-        fillSubsectionsSelector()
         fillTorrentClientsSelector()
+        fillSubsectionsSelector()
+
         if (subsectionSelector.itemCount > 0) {
             subsectionSelector.selectedIndex = 0
-            if (torrentClientSelector.itemCount > 0)
-                torrentClientSelector.selectedIndex = 1
-        } else {
-            torrentClientSelector.isEnabled = false
         }
     }
 
@@ -148,16 +182,26 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
 
     private fun fillTorrentClientsSelector() {
         torrentClientSelector.removeAllItems()
+        torrentClientSelector.addItem(TorrentClientSelectorItem(0, null))
         for (client in ConfigRepository.torrentClients) {
             torrentClientSelector.addItem(TorrentClientSelectorItem(client.key, client.value))
         }
     }
 
+    fun updateCurrentSubsection() {
+        selectedSubsection?.let {
+            it.clientId = (torrentClientSelector.selectedItem as TorrentClientSelectorItem?)?.id ?: 0
+            it.category = categoryNameField.text
+            it.dataFolder = downloadDirectoryField.text
+
+        }
+    }
+
     class TorrentClientSelectorItem(
-        val id: Int, val client: AbstractTorrentClient
+        val id: Int, val client: AbstractTorrentClient?
     ) {
         override fun toString(): String {
-            return client.name
+            return client?.name ?: "(не выбран)"
         }
     }
 }

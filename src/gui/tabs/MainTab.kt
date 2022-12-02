@@ -297,7 +297,6 @@ class MainTab : JPanel(GridBagLayout()) {
             if (event.stateChange == ItemEvent.SELECTED) {
                 val item = event.item as MainTabSpinnerItem
                 item.onSelect()
-                // do something with object
             }
         }
     }
