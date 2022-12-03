@@ -21,6 +21,15 @@ object ConfigRepository {
     val subsectionsConfig get() = config.subsectionsConfig
     val subsections get() = subsectionsConfig.subsections
     val torrentClients get() = config.torrentClients
+    val displayingSubsectionsIds: List<Int>
+        get() {
+            val ids = ArrayList<Int>()
+            for (subsection in subsections) {
+                if (!subsection.hideInList)
+                    ids.add(subsection.id)
+            }
+            return ids
+        }
     private val mapper = ObjectMapper()
         .registerKotlinModule()
         .setSerializationInclusion(JsonInclude.Include.NON_NULL)

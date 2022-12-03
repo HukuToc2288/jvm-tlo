@@ -6,6 +6,7 @@ import entities.keeper.ForumTorrentTopicsData
 import entities.torrentclient.TorrentClientTorrent
 import entities.misc.TorrentFilterCriteria
 import utils.CachingIterator
+import utils.ConfigRepository
 import java.lang.StringBuilder
 import java.sql.DriverManager
 import java.sql.ResultSet
@@ -103,7 +104,8 @@ object TorrentRepository {
                     " LEFT OUTER JOIN Keepers ON Topics.id = Keepers.id" +
                     " LEFT OUTER JOIN KeepersSeeders ON Topics.id = KeepersSeeders.topic_id" +
                     " AND (KeepersSeeders.nick IS NULL OR Keepers.nick IS NULL OR Keepers.nick == KeepersSeeders.nick)" +
-                    " WHERE st IN (${filter.statuses.joinToString(",")})" +
+                    " WHERE ss IN (${ConfigRepository.displayingSubsectionsIds.joinToString(",")})" +
+                    " AND st IN (${filter.statuses.joinToString(",")})" +
                     " AND pt IN (${filter.priorities.joinToString(",")})" +
                     " AND se >= ${filter.minAverageSeeds} AND  se <= ${filter.maxAverageSeeds}" +
                     " AND rg <= ${(filter.registerDate.time / 1000).toInt()}" +
