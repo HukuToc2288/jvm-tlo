@@ -2,25 +2,22 @@ package gui.settings
 
 import db.TorrentRepository
 import entities.config.SubsectionsConfigSubsection
-import entities.db.SubsectionSearchItem
-import entities.misc.MainTabSpinnerItem
 import torrentclients.AbstractTorrentClient
 import utils.ConfigRepository
 import java.awt.*
 import java.awt.event.ItemEvent
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import java.net.URL
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 
 class SubsectionsTab : JPanel(GridBagLayout()) {
 
-    val subsectionsSuggestionsCount = 10
-    var selectedSubsection: SubsectionsConfigSubsection? = null
+    private val subsectionsSuggestionsCount = 10
+    private val parametersComponents = ArrayList<Component>()
 
-    val subsectionsAddField: JTextField = object : JTextField() {
+    private var selectedSubsection: SubsectionsConfigSubsection? = null
+
+    private val subsectionsAddField: JTextField = object : JTextField() {
 
         val popupMenu = JPopupMenu()
 
@@ -47,6 +44,7 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
             }
             val subsections = TorrentRepository.findSubsections(text, subsectionsSuggestionsCount)
             popupMenu.removeAll()
+            val thisField = this
             for (i in subsections.indices) {
                 val subsection = subsections[i]
                 if (i >= subsectionsSuggestionsCount) {
@@ -59,7 +57,6 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
                 val menuItem = JMenuItem("${subsection.id}: ${subsection.name}").apply {
                     addActionListener {
                         // TODO: 02.12.2022 enter not working
-                        println(this@apply.label)
                         val subsectionsConfigSubsection = SubsectionsConfigSubsection(
                             subsection.id,
                             subsection.name,
@@ -72,6 +69,8 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
                         ConfigRepository.subsections.add(subsectionsConfigSubsection)
                         subsectionSelector.addItem(subsectionsConfigSubsection)
                         subsectionSelector.selectedItem = subsectionsConfigSubsection
+                        setParametersVisibility(true)
+                        thisField.text = ""
                     }
                 }
                 popupMenu.add(menuItem)
@@ -106,12 +105,29 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
             }
         }
     }
-    val torrentClientSelector = JComboBox<TorrentClientSelectorItem>()
-    val categoryNameField = JTextField()
-    val downloadDirectoryField = JTextField()
-    val createSubFoldersCheckbox = JCheckBox("Создавать подкаталоги с ID раздач", false)
-    val hideInListCheckbox = JCheckBox("Скрывать раздачи в общем списке", false)
-    val deleteButton = JButton("Удалить")
+    private val torrentClientSelector = JComboBox<TorrentClientSelectorItem>()
+    private val categoryNameField = JTextField()
+    private val downloadDirectoryField = JTextField()
+    private val createSubFoldersCheckbox = JCheckBox("Создавать подкаталоги с ID раздач", false)
+    private val hideInListCheckbox = JCheckBox("Скрывать раздачи в общем списке", false)
+    private val deleteButton = JButton("Удалить").apply {
+        addActionListener {
+            if (JOptionPane.showConfirmDialog(
+                    this,
+                    "Удалить \"${selectedSubsection?.title}\" из списка хранимых подразделов?",
+                    "Удалить подраздел?",
+                    JOptionPane.YES_NO_OPTION,
+                ) == JOptionPane.YES_OPTION
+            ) {
+                ConfigRepository.subsections.remove(selectedSubsection)
+                subsectionSelector.removeItem(selectedSubsection)
+                if (subsectionSelector.itemCount == 0)
+                    setParametersVisibility(false)
+            } else {
+                // pass
+            }
+        }
+    }
 
     init {
         buildGui()
@@ -126,25 +142,25 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         add(JLabel("Добавить подраздел"), constraints)
 
         constraints.gridy++
-        add(JLabel("Подраздел:"), constraints)
+        add(JLabel("Подраздел:").also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy++
-        add(JLabel("Клиент:"), constraints)
+        add(JLabel("Клиент:").also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy++
-        add(JLabel("Категория:"), constraints)
+        add(JLabel("Категория:").also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy++
-        add(JLabel("Каталог для данных:"), constraints)
+        add(JLabel("Каталог для данных:").also { parametersComponents.add(it) }, constraints)
 
 
         constraints.gridwidth = 2
         constraints.fill = GridBagConstraints.HORIZONTAL
         constraints.gridy++
-        add(createSubFoldersCheckbox, constraints)
+        add(createSubFoldersCheckbox.also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy++
-        add(hideInListCheckbox, constraints)
+        add(hideInListCheckbox.also { parametersComponents.add(it) }, constraints)
 
         constraints.gridwidth = 1
         constraints.gridx = 1
@@ -153,16 +169,16 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         add(subsectionsAddField, constraints)
 
         constraints.gridy++
-        add(subsectionSelector, constraints)
+        add(subsectionSelector.also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy++
-        add(torrentClientSelector, constraints)
+        add(torrentClientSelector.also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy++
-        add(categoryNameField, constraints)
+        add(categoryNameField.also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy++
-        add(downloadDirectoryField, constraints)
+        add(downloadDirectoryField.also { parametersComponents.add(it) }, constraints)
 
 
         constraints.gridy += 3
@@ -170,9 +186,8 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         constraints.gridwidth = 1
         constraints.gridx = 1
         constraints.fill = GridBagConstraints.NONE
-        constraints.anchor = GridBagConstraints.SOUTHEAST
-        constraints.weightx = 0.0
-        add(deleteButton, constraints)
+        constraints.anchor = GridBagConstraints.EAST
+        add(deleteButton.also { parametersComponents.add(it) }, constraints)
 
         fillTorrentClientsSelector()
         fillSubsectionsSelector()
@@ -180,8 +195,13 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         if (subsectionSelector.itemCount > 0) {
             subsectionSelector.selectedIndex = 0
         }
+        setParametersVisibility(subsectionSelector.itemCount > 0)
     }
 
+    private fun setParametersVisibility(isVisible: Boolean) {
+        for (component in parametersComponents)
+            component.isVisible = isVisible
+    }
 
     private fun fillSubsectionsSelector() {
         subsectionSelector.removeAllItems()
@@ -209,10 +229,12 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
     }
 
     class TorrentClientSelectorItem(
-        val id: Int, val client: AbstractTorrentClient?
+        val id: Int, client: AbstractTorrentClient?
     ) {
+        val name = client?.name ?: "(не выбран)"
+
         override fun toString(): String {
-            return client?.name ?: "(не выбран)"
+            return name
         }
     }
 }
