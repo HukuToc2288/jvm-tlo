@@ -66,6 +66,7 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
                             1,
                             "",
                             "",
+                            false,
                             false
                         )
                         ConfigRepository.subsections.add(subsectionsConfigSubsection)
@@ -100,13 +101,16 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
 
                 categoryNameField.text = selectedItem.category
                 downloadDirectoryField.text = selectedItem.dataFolder
+                createSubFoldersCheckbox.isSelected = selectedItem.createSubFolders
+                hideInListCheckbox.isSelected = selectedItem.hideInList
             }
         }
     }
     val torrentClientSelector = JComboBox<TorrentClientSelectorItem>()
     val categoryNameField = JTextField()
     val downloadDirectoryField = JTextField()
-    val addButton = JButton("Добавить")
+    val createSubFoldersCheckbox = JCheckBox("Создавать подкаталоги с ID раздач", false)
+    val hideInListCheckbox = JCheckBox("Скрывать раздачи в общем списке", false)
     val deleteButton = JButton("Удалить")
 
     init {
@@ -133,10 +137,18 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         constraints.gridy++
         add(JLabel("Каталог для данных:"), constraints)
 
+
         constraints.gridwidth = 2
+        constraints.fill = GridBagConstraints.HORIZONTAL
+        constraints.gridy++
+        add(createSubFoldersCheckbox, constraints)
+
+        constraints.gridy++
+        add(hideInListCheckbox, constraints)
+
+        constraints.gridwidth = 1
         constraints.gridx = 1
         constraints.gridy = 0
-        constraints.fill = GridBagConstraints.HORIZONTAL
         constraints.weightx = 2.0
         add(subsectionsAddField, constraints)
 
@@ -152,15 +164,13 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         constraints.gridy++
         add(downloadDirectoryField, constraints)
 
-        constraints.gridy++
+
+        constraints.gridy += 3
         constraints.weightx = 1.0
         constraints.gridwidth = 1
         constraints.gridx = 1
         constraints.fill = GridBagConstraints.NONE
         constraints.anchor = GridBagConstraints.SOUTHEAST
-        add(addButton, constraints)
-
-        constraints.gridx = 2
         constraints.weightx = 0.0
         add(deleteButton, constraints)
 
@@ -193,7 +203,8 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
             it.clientId = (torrentClientSelector.selectedItem as TorrentClientSelectorItem?)?.id ?: 0
             it.category = categoryNameField.text
             it.dataFolder = downloadDirectoryField.text
-
+            it.createSubFolders = createSubFoldersCheckbox.isSelected
+            it.hideInList = hideInListCheckbox.isSelected
         }
     }
 

@@ -7,6 +7,7 @@ class SubsectionsConfigSubsection(
     var category: String,
     var dataFolder: String,
     var createSubFolders: Boolean,
+    var hideInList: Boolean
 ){
     override fun toString(): String {
         return title
