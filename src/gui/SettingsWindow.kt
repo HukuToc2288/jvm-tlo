@@ -4,6 +4,7 @@ import api.rebuildForumApi
 import gui.settings.AuthSettingsTab
 import gui.settings.ProxyTab
 import gui.settings.SubsectionsTab
+import gui.settings.TorrentClientsTab
 import utils.ConfigRepository
 import java.awt.Dimension
 import javax.swing.*
@@ -18,6 +19,7 @@ class SettingsWindow : JFrame("Настройки JVM-TLO") {
     var shouldRebuildRetrofits = false
     val proxyTab = ProxyTab()
     val subsectionsTab = SubsectionsTab()
+    val torrentClientsTab = TorrentClientsTab()
 
     init {
         val tabbedPane = JTabbedPane()
@@ -31,6 +33,7 @@ class SettingsWindow : JFrame("Настройки JVM-TLO") {
         tabbedPane.addTab("Авторизация", AuthSettingsTab())
         tabbedPane.addTab("Прокси", proxyTab)
         tabbedPane.addTab("Хранимые подразделы", subsectionsTab)
+        tabbedPane.add("Торрент-клиенты", torrentClientsTab)
         tabbedPane.addChangeListener {
             if (tabbedPane.selectedIndex == 1) {
                 // обновим настройки прокси при покидании этой вкладки
@@ -38,7 +41,7 @@ class SettingsWindow : JFrame("Настройки JVM-TLO") {
             }
         }
 
-        minimumSize = Dimension(400, 300)
+        minimumSize = Dimension(640, 480)
         preferredSize = minimumSize
 
         addWindowListener(object : WindowAdapter() {

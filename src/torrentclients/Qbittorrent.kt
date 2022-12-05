@@ -15,12 +15,15 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)
+
 class Qbittorrent(
     name: String,
-    baseUrl: String,
-    login: String?,
-    password: String?
-) : AbstractTorrentClient(name, TorrentClientTypes.QBITTORRENT, baseUrl, login, password) {
+    hostname: String,
+    port: Int,
+    ssl: Boolean,
+    login: String? = null,
+    password: String? = null
+) : AbstractTorrentClient(name, TorrentClientTypes.QBITTORRENT, hostname, port, ssl, login, password) {
 
     private val cookieJar = SingleUrlCookieJar()
     private val SESSION_COOKIE_NAME = "SID"
@@ -83,7 +86,7 @@ class Qbittorrent(
         val comment = response.body()!!.comment
         val found = rutrackerCommentRegex.find(comment) ?: return TorrentClientTorrent.TOPIC_THIRD_PARTY
         return try {
-            comment.substring(found.range.last+1).toInt()
+            comment.substring(found.range.last + 1).toInt()
         } catch (e: NumberFormatException) {
             TorrentClientTorrent.TOPIC_THIRD_PARTY
         }
