@@ -28,6 +28,9 @@ class LogTab : JPanel(GridBagLayout()) {
     init {
         buildGui()
         updateLogs()
+        LogUtils.addLogListener { level, line ->
+            addLogLine(level, line)
+        }
     }
 
     fun buildGui() {
@@ -48,25 +51,31 @@ class LogTab : JPanel(GridBagLayout()) {
             val line = logLines[lineNum]
             if (line.isEmpty())
                 continue
-            val textAttrs = SimpleAttributeSet()
             if (line.length < 2 || line[1] != '/') {
+                val textAttrs = SimpleAttributeSet()
                 StyleConstants.setForeground(textAttrs, Color.ORANGE)
                 doc.insertString(doc.length, "Строка ${lineNum + 1}: некорректный формат лога!\n", textAttrs)
                 continue
             }
             val lineType = LogUtils.getLineType(line)
             if (lineType == null) {
+                val textAttrs = SimpleAttributeSet()
                 StyleConstants.setForeground(textAttrs, Color.ORANGE)
                 doc.insertString(doc.length, "Строка ${lineNum + 1}: неизвестный префикс ${line[0]}!\n", textAttrs)
                 continue
             }
             val lineNoPrefix = line.substring(2)
-            when (lineType) {
-                LogUtils.Level.INFO -> {}
-                LogUtils.Level.WARN -> StyleConstants.setForeground(textAttrs, Color.YELLOW)
-                LogUtils.Level.ERROR -> StyleConstants.setForeground(textAttrs, Color.RED)
-            }
-            doc.insertString(doc.length, "$lineNoPrefix\n", textAttrs)
+            addLogLine(lineType, lineNoPrefix)
         }
+    }
+
+    private fun addLogLine(level: LogUtils.Level, line: String) {
+        val textAttrs = SimpleAttributeSet()
+        when (level) {
+            LogUtils.Level.INFO -> {}
+            LogUtils.Level.WARN -> StyleConstants.setForeground(textAttrs, Color.YELLOW)
+            LogUtils.Level.ERROR -> StyleConstants.setForeground(textAttrs, Color.RED)
+        }
+        logArea.styledDocument.insertString(logArea.styledDocument.length, "$line\n", textAttrs)
     }
 }

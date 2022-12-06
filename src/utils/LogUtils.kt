@@ -8,43 +8,51 @@ import java.util.*
 object LogUtils {
     private val logFile = File("files/log.txt")
     private val dateFormatter = SimpleDateFormat("dd-MM-yyyy hh:mm:ss")
-    private val logListeners = ArrayList<LogListener>()
+    private val logListeners = ArrayList<(Level, String) -> Unit>()
 
     fun log(level: Level, message: String) {
         try {
             val logWriter = FileWriter(logFile)
             for (line in message.lines()) {
-                val generalLogLine = when (level) {
-                    Level.INFO -> "I"
-                    Level.WARN -> "W"
-                    Level.ERROR -> "E"
-                } + "/" + dateFormatter.format(Date()) + " " + line
+                logWriter.write(
+                    when (level) {
+                        Level.INFO -> "I/"
+                        Level.WARN -> "W/"
+                        Level.ERROR -> "E/"
+                    }
+                )
+                val generalLogLine = dateFormatter.format(Date()) + " " + line
                 logWriter.write(generalLogLine)
                 logWriter.write("\n")
-                fireLogListeners(generalLogLine)
+                fireLogListeners(level, generalLogLine)
             }
 
             logWriter.close()
         } catch (e: Exception) {
-            fireLogListeners("E/" + dateFormatter.format(Date()) + " Невозможно записать лог-файл: " + e.localizedMessage)
+            fireLogListeners(
+                Level.ERROR,
+                dateFormatter.format(Date()) + " Невозможно записать лог-файл: " + e.localizedMessage
+            )
         }
     }
 
     fun readLogFile(): List<String> {
         return try {
+            if (!logFile.exists())
+                logFile.createNewFile()
             logFile.readLines()
         } catch (e: Exception) {
             listOf("E/" + dateFormatter.format(Date()) + " Невозможно прочитать лог-файл: " + e.localizedMessage)
         }
     }
 
-    fun addLogListener(listener: LogListener) {
+    fun addLogListener(listener: (level: Level, line: String) -> Unit) {
         logListeners.add(listener)
     }
 
-    private fun fireLogListeners(line: String) {
+    private fun fireLogListeners(level: Level, line: String) {
         for (listener in logListeners) {
-            listener.onLogUpdated(line)
+            listener.invoke(level, line)
         }
 
     }
@@ -56,11 +64,6 @@ object LogUtils {
             'E' -> Level.ERROR
             else -> null
         }
-    }
-
-    @FunctionalInterface
-    interface LogListener {
-        fun onLogUpdated(line: String)
     }
 
     enum class Level {
