@@ -10,6 +10,18 @@ object LogUtils {
     private val dateFormatter = SimpleDateFormat("dd-MM-yyyy hh:mm:ss")
     private val logListeners = ArrayList<(Level, String) -> Unit>()
 
+    fun i(message: String) {
+        log(Level.INFO,message)
+    }
+
+    fun w(message: String) {
+        log(Level.WARN,message)
+    }
+
+    fun e(message: String) {
+        log(Level.ERROR,message)
+    }
+
     fun log(level: Level, message: String) {
         try {
             val logWriter = FileWriter(logFile)
