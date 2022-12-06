@@ -63,7 +63,6 @@ private fun createAndShowGUI() {
     tabbedPane.addTab("Главная", mainTab)
 
     val logTab = LogTab()
-    tabbedPane.addTab("Логи", logTab)
 
     val mainPanel = JPanel().apply {
         layout = OverlayLayout(this)
@@ -87,6 +86,7 @@ private fun createAndShowGUI() {
 
     //Display the window.
     frame.pack()
+    tabbedPane.addTab("Логи", logTab)
     frame.isVisible = true
     frame.minimumSize = Dimension(frame.size)
 }
