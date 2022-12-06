@@ -1,3 +1,5 @@
+@file:Suppress("SqlDialectInspection")
+
 package db
 
 import entities.config.SubsectionsConfigSubsection
