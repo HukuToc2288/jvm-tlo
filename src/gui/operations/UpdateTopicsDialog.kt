@@ -4,13 +4,18 @@ import api.keeperRetrofit
 import db.TorrentRepository
 import entities.db.FullUpdateTopic
 import entities.db.SeedsUpdateTopic
+import entities.keeper.ForumLimit
 import entities.torrentclient.TorrentClientTorrent
+import retrofit2.Call
 import utils.ConfigRepository
+import utils.LogUtils
 import utils.pluralForum
 import java.awt.Frame
+import java.io.IOException
 import kotlin.math.min
 
 import java.util.HashSet
+import java.util.StringJoiner
 
 
 class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновление списка раздач") {
@@ -27,8 +32,8 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                     return@Thread
                 onTaskSuccess()
             } catch (e: Exception) {
+                LogUtils.e("Ошибка обновления списка раздач: " + e.localizedMessage)
                 onTaskFailed()
-                e.printStackTrace()
             }
         }
         updateTorrentsThread.start()
@@ -41,16 +46,28 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         if (cancelTaskIfRequested {})
             return
         // TODO: 13.11.2022 обновлять хранителей с форума
-        val keepersMap = keeperRetrofit.keepersUserData().execute().body()!!.keepers
+        val keepersMap = try {
+            responseOrThrow(keeperRetrofit.keepersUserData(),"Не получены ID хранителей").keepers
+        }catch (e: Exception){
+            showNonCriticalError()
+            LogUtils.w(e.localizedMessage)
+            emptyMap()
+        }
         val torrentStatus = setOf(0, 2, 3, 8, 10)
         val packSize = 1000
         if (cancelTaskIfRequested {})
             return
-        val limit = keeperRetrofit.getLimit().execute().body()!!.limit
+        val limit = try {
+            responseOrThrow(keeperRetrofit.getLimit(), "Не получены лимиты на запрос").limit
+        } catch (e: Exception) {
+            showNonCriticalError()
+            LogUtils.w(e.localizedMessage)
+            100
+        }
         for (subsectionEntry in ConfigRepository.subsections) {
             val subsection = subsectionEntry.id
             if (!TorrentRepository.shouldUpdate(subsection)) {
-                println("Notice: Не требуется обновление для подраздела № $subsection")
+                LogUtils.i("Не требуется обновление для подраздела $subsection")
                 continue
             }
             setCurrentText("Обновление подраздела $subsection")
@@ -58,8 +75,10 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 // запрашиваем инфу о раздачах в подразделе с сервера
                 if (cancelTaskIfRequested {})
                     return
-                val forumTorrents =
-                    keeperRetrofit.getForumTorrents(subsection).execute().body()!!.result
+                val forumTorrents = responseOrThrow(
+                    keeperRetrofit.getForumTorrents(subsection),
+                    "не получена информация о раздачах"
+                ).result
                 setCurrentProgress(0, forumTorrents.size)
                 // даты регистрации с клиента
                 val existingTopicsDates =
@@ -136,9 +155,9 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 TorrentRepository.appendFullUpdateTopics(fullUpdateTopics)
                 TorrentRepository.commitTopics(subsection, true)
                 TorrentRepository.commitKeepersSeeders(true)
-                println("Обновление подраздела $subsection успешно завершено")
+                LogUtils.i("Обновление подраздела $subsection успешно завершено")
             } catch (e: Exception) {
-                e.printStackTrace()
+                LogUtils.w("Не удалось обновить подраздел ${subsection}: " + e.localizedMessage)
                 showNonCriticalError()
             } finally {
                 incrementFullProgress()
@@ -185,8 +204,8 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         setFullProgress(0, torrentClients.size)
         val updatedTopicsHashes = HashMap<String, String>()    // старый и новый хэши
         for (torrentClientItem in torrentClients) {
+            val torrentClient = torrentClientItem.value
             try {
-                val torrentClient = torrentClientItem.value
                 setCurrentText("Получение раздач из клиента ${torrentClientItem.value.name}")
                 setCurrentProgress(-1)
                 if (cancelTaskIfRequested {
@@ -321,7 +340,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 }
                 TorrentRepository.commitTorrentsFromClient(torrentClientItem.key, true)
             } catch (e: Exception) {
-                e.printStackTrace()
+                LogUtils.w("Не получены раздачи от торрент-клиента ${torrentClient.name}: " + e.localizedMessage)
                 showNonCriticalError()
             } finally {
                 incrementFullProgress()
@@ -344,5 +363,18 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             }
         }
         return keys
+    }
+
+    fun <T> responseOrThrow(call: Call<T>, errorMessage: String): T {
+        val response = try {
+            call.execute()
+        } catch (e: IOException) {
+            throw IOException(errorMessage + ": " + e.localizedMessage)
+        }
+        if (response.body() == null) {
+            throw NullPointerException("$errorMessage: ${response.code()}")
+        } else {
+            return response.body()!!
+        }
     }
 }

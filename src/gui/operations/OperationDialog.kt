@@ -1,5 +1,6 @@
 package gui.operations
 
+import utils.LogUtils
 import utils.pluralForum
 import java.awt.*
 import java.awt.event.ActionListener
@@ -87,6 +88,7 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
 
     // Этот метод заблокирует поток, из которого будет вызван (и правильно сделает)
     fun executeTask(): Result {
+        LogUtils.i("$title: начато")
         SwingUtilities.invokeLater {
             doTask()
         }
@@ -117,6 +119,7 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
      * Вызывается после того, как задача была успешно завершена
      */
     fun onTaskSuccess() {
+        LogUtils.i("$title: операция успешна")
         SwingUtilities.invokeLater {
             // FIXME: 11.11.2022 оставлено для отладки, в готовой версии окно должно просто закрываться
             if (nonCriticalErrors > 0) {
@@ -137,9 +140,9 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
      * Вызывается, если при выполнении операции возникла неисправимая ошибка
      */
     fun onTaskFailed() {
+        LogUtils.e("$title: операция не выполнена")
         SwingUtilities.invokeLater {
             statusText.text = "Произошла критическая ошибка, проверьте журнал"
-            // TODO: 06.11.2022 а журнала-то нет, ыыы
             statusText.foreground = Color.RED
             result = Result.FAILED
             onTaskFinished()
@@ -150,6 +153,7 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
      * Вызывается после того, как операция была отменена и выполнена соответствующая функция
      */
     private fun onTaskCancelled() {
+        LogUtils.i("$title: операция прервана пользователем")
         SwingUtilities.invokeLater {
             statusText.text = "Операция отменена"
             statusText.foreground = fullText.foreground
@@ -223,12 +227,14 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
     }
 
     fun setCurrentText(text: String) {
+        LogUtils.i(text)
         currentText.text = text
         minimumSize = size
     }
 
 
     fun setFullText(text: String) {
+        LogUtils.i(text)
         fullText.text = text
         minimumSize = size
     }
