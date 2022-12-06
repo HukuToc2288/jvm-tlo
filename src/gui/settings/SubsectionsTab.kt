@@ -10,7 +10,7 @@ import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 
-class SubsectionsTab : JPanel(GridBagLayout()) {
+class SubsectionsTab : JPanel(GridBagLayout()), SavableTab {
 
     private val subsectionsSuggestionsCount = 10
     private val parametersComponents = ArrayList<Component>()
@@ -82,7 +82,7 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
     val subsectionSelector = JComboBox<SubsectionsConfigSubsection>().apply {
         addItemListener { event ->
             if (event.stateChange == ItemEvent.SELECTED) {
-                updateCurrentSubsection()
+                saveSettings()
                 val selectedItem = this.selectedItem as SubsectionsConfigSubsection?
                 selectedSubsection = selectedItem
                 selectedItem ?: return@addItemListener
@@ -218,16 +218,6 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         }
     }
 
-    fun updateCurrentSubsection() {
-        selectedSubsection?.let {
-            it.clientId = (torrentClientSelector.selectedItem as TorrentClientSelectorItem?)?.id ?: 0
-            it.category = categoryNameField.text
-            it.dataFolder = downloadDirectoryField.text
-            it.createSubFolders = createSubFoldersCheckbox.isSelected
-            it.hideInList = hideInListCheckbox.isSelected
-        }
-    }
-
     class TorrentClientSelectorItem(
         val id: Int, client: AbstractTorrentClient?
     ) {
@@ -236,5 +226,16 @@ class SubsectionsTab : JPanel(GridBagLayout()) {
         override fun toString(): String {
             return name
         }
+    }
+
+    override fun saveSettings(): Boolean {
+        selectedSubsection?.let {
+            it.clientId = (torrentClientSelector.selectedItem as TorrentClientSelectorItem?)?.id ?: 0
+            it.category = categoryNameField.text
+            it.dataFolder = downloadDirectoryField.text
+            it.createSubFolders = createSubFoldersCheckbox.isSelected
+            it.hideInList = hideInListCheckbox.isSelected
+        }
+        return true
     }
 }

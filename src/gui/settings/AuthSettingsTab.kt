@@ -20,6 +20,7 @@ import javax.swing.event.DocumentListener
 import kotlin.math.log
 import kotlin.math.min
 
+// TODO: 06.12.2022 переписать на новый api когда понадобится эта вкладка
 class AuthSettingsTab : JPanel(GridBagLayout()) {
 
     var captchaId: String? = null

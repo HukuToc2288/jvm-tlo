@@ -1,29 +1,40 @@
 package gui.settings
 
 import entities.config.ProxyConfigProxy
+import gui.GuiUtils.verifyNotEmpty
 import utils.*
-import java.awt.Color
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
-import java.awt.Insets
+import java.awt.*
 import java.net.Proxy
 import java.util.*
 import javax.swing.*
 import kotlin.math.log
 
-class ProxyTab : JPanel(GridBagLayout()) {
+class ProxyTab : JPanel(GridBagLayout()), SavableTab {
 
-    val proxyForumCheckbox = JCheckBox("Проксировать форум")
-    val proxyApiCheckbox = JCheckBox("Проксировать API")
+
+    private val parametersComponents = ArrayList<Component>()
+    val proxyForumCheckbox: JCheckBox = JCheckBox("Проксировать форум").apply {
+        addItemListener {
+            setParametersVisibility(isSelected || proxyApiCheckbox.isSelected)
+        }
+    }
+    val proxyApiCheckbox: JCheckBox = JCheckBox("Проксировать API").apply {
+        addItemListener {
+            setParametersVisibility(isSelected || proxyForumCheckbox.isSelected)
+        }
+    }
 
     val proxyTypeSelector = JComboBox<ProxyConfigProxy.ProxyType>(ProxyConfigProxy.ProxyType.values())
     val hostField = JTextField().apply {
         columns = 20
         document.addDocumentListener(ResetBackgroundListener(this))
     }
-    val portField = JTextField().apply {
-        columns = 20
-        document.addDocumentListener(ResetBackgroundListener(this))
+    private val portField = JSpinner(SpinnerNumberModel(80, 1, 65535, 1)).apply {
+        (editor as JSpinner.NumberEditor).apply {
+            textField.columns = 6
+            format.isGroupingUsed = false
+        }
+
     }
     val loginField = JTextField().apply {
         columns = 20
@@ -51,63 +62,76 @@ class ProxyTab : JPanel(GridBagLayout()) {
         constraints.gridy = 2
         constraints.gridwidth = 1
         constraints.fill = GridBagConstraints.NONE
-        add(JLabel("Протокол"), constraints)
+        add(JLabel("Протокол").also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy = 3
-        add(JLabel("Адрес"), constraints)
+        add(JLabel("Адрес").also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy = 4
-        add(JLabel("Порт"), constraints)
+        add(JLabel("Порт").also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy = 5
-        add(JLabel("Логин"), constraints)
+        add(JLabel("Логин").also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy = 6
-        add(JLabel("Пароль"), constraints)
+        add(JLabel("Пароль").also { parametersComponents.add(it) }, constraints)
 
         constraints.fill = GridBagConstraints.HORIZONTAL
         constraints.weightx = 1.0
         constraints.gridx = 1
         constraints.gridy = 2
-        add(proxyTypeSelector, constraints)
+        add(proxyTypeSelector.also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy = 3
-        add(hostField, constraints)
+        add(hostField.also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy = 4
-        add(portField, constraints)
+        add(portField.also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy = 5
-        add(loginField, constraints)
+        add(loginField.also { parametersComponents.add(it) }, constraints)
 
         constraints.gridy = 6
-        add(passwordField, constraints)
+        add(passwordField.also { parametersComponents.add(it) }, constraints)
 
-        with(ConfigRepository.proxyConfig){
+        with(ConfigRepository.proxyConfig) {
             proxyForumCheckbox.isSelected = proxyForum
             proxyApiCheckbox.isSelected = proxyApi
             val proxy = proxies[0]
             proxyTypeSelector.selectedItem = proxy.type
             hostField.text = proxy.hostname
-            portField.text = proxy.port.toString()
+            portField.value = proxy.port
             loginField.text = proxy.login
             passwordField.text = proxy.password
         }
     }
 
-    fun saveSettings() {
-        with(ConfigRepository.proxyConfig){
+    private fun setParametersVisibility(isVisible: Boolean) {
+        for (component in parametersComponents)
+            component.isVisible = isVisible
+    }
+
+    override fun saveSettings(): Boolean {
+        with(ConfigRepository.proxyConfig) {
             proxyForum = proxyForumCheckbox.isSelected
             proxyApi = proxyApiCheckbox.isSelected
 
+            if (!proxyApiCheckbox.isSelected && !proxyForumCheckbox.isSelected)
+                return true
+
+            if (!(hostField.verifyNotEmpty()))
+                return false
+
             val proxy = proxies[0]
-            with(proxy){
+            with(proxy) {
                 type = proxyTypeSelector.selectedItem as ProxyConfigProxy.ProxyType
                 hostname = hostField.text
-                port = portField.text.toInt()
+                port = portField.value as Int
                 login = loginField.text.toString()
                 password = passwordField.text.toString()
             }
         }
+        return true
     }
+
 }

@@ -22,7 +22,7 @@ object GuiUtils {
     }
 
     fun JTextComponent.verifyNotEmpty(): Boolean {
-        return text.isEmpty().also {
+        return !text.isEmpty().also {
             background = if (it)
                 errorBackground
             else

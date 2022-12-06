@@ -219,7 +219,7 @@ class TorrentClientsTab : JPanel(GridBagLayout()), SavableTab {
     override fun saveSettings(): Boolean {
         if (torrentClientSelector.itemCount == 0 || selectedClient == null)
             return true
-        if (clientNameField.verifyNotEmpty() or hostnameField.verifyNotEmpty())
+        if (!(clientNameField.verifyNotEmpty() and hostnameField.verifyNotEmpty()))
             return false
         selectedClient?.let {
             ConfigRepository.torrentClients[it.id] = AbstractTorrentClient.fromJson(
