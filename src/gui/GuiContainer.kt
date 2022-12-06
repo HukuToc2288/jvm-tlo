@@ -3,6 +3,7 @@ package gui
 import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.JsonMappingException
+import gui.tabs.LogTab
 import gui.tabs.MainTab
 import utils.ConfigRepository
 
@@ -44,7 +45,7 @@ private fun initConfig() {
             else -> "Ошибка загрузки конфигурации"
         }
         message += "\n\n" + e.localizedMessage
-        JOptionPane.showMessageDialog(null,message,"Ошибка конфигурации",JOptionPane.ERROR_MESSAGE)
+        JOptionPane.showMessageDialog(null, message, "Ошибка конфигурации", JOptionPane.ERROR_MESSAGE)
         exitProcess(1)
     }
 }
@@ -58,10 +59,12 @@ private fun createAndShowGUI() {
     //Add content to the window.
     val tabbedPane = JTabbedPane()
 
-    val panel1: JComponent = MainTab()
-    tabbedPane.addTab(
-        "Главная", panel1
-    )
+    val mainTab = MainTab()
+    tabbedPane.addTab("Главная", mainTab)
+
+    val logTab = LogTab()
+    tabbedPane.addTab("Логи", logTab)
+
     val mainPanel = JPanel().apply {
         layout = OverlayLayout(this)
     }
