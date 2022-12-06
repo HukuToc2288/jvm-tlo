@@ -24,7 +24,7 @@ object LogUtils {
 
     fun log(level: Level, message: String) {
         try {
-            val logWriter = FileWriter(logFile)
+            val logWriter = FileWriter(logFile,true)
             for (line in message.lines()) {
                 logWriter.write(
                     when (level) {
