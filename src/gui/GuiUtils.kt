@@ -2,7 +2,9 @@ package gui
 
 import java.awt.Color
 import javax.swing.JLabel
+import javax.swing.JSeparator
 import javax.swing.JTextField
+import javax.swing.border.EmptyBorder
 import javax.swing.text.JTextComponent
 
 object GuiUtils {
@@ -27,6 +29,12 @@ object GuiUtils {
                 errorBackground
             else
                 defaultFieldBackground
+        }
+    }
+
+    fun simpleSeparator(): JSeparator {
+        return JSeparator().apply {
+            border = EmptyBorder(5, 5, 5, 5)
         }
     }
 }

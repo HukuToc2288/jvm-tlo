@@ -10,6 +10,7 @@ import entities.misc.MainTabSpinnerItem
 import entities.misc.TorrentFilterCriteria
 import entities.misc.TorrentTableItem
 import entities.misc.UpdatedTorrentTableItem
+import gui.GuiUtils
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -306,7 +307,7 @@ class MainTab : JPanel(GridBagLayout()) {
     }
 
     fun buildGui() {
-        var constraints = GridBagConstraints()
+        val constraints = GridBagConstraints()
 
         addTopicSelectorItems(topicSelector)
         constraints.fill = GridBagConstraints.HORIZONTAL
@@ -377,7 +378,7 @@ class MainTab : JPanel(GridBagLayout()) {
     }
 
     fun buildControlButtonsPanel(): JComponent {
-        val container: JPanel = JPanel()
+        val container = JPanel()
         container.layout = FlowLayout(FlowLayout.LEFT, 0, 0)
         container.add(showFilterButton)
         container.add(resetFilterButton)
@@ -410,11 +411,11 @@ class MainTab : JPanel(GridBagLayout()) {
         container.add(keepCheckbox)
         container.add(noKeepCheckbox)
         container.add(downloadingCheckbox)
-        container.add(buildSimpleSeparator())
+        container.add(GuiUtils.simpleSeparator())
 
         container.add(sortAscendingRadio)
         container.add(sortDescendingRadio)
-        container.add(buildSimpleSeparator())
+        container.add(GuiUtils.simpleSeparator())
 
         container.add(sortTitleRadio)
         container.add(sortSizeRadio)
@@ -432,7 +433,7 @@ class MainTab : JPanel(GridBagLayout()) {
             add(notFormalizedCheckbox)
             add(suspiciousCheckbox)
             add(temporaryCheckbox)
-            add(buildSimpleSeparator())
+            add(GuiUtils.simpleSeparator())
             add(lowPriorityCheckbox)
             add(normalPriorityCheckbox)
             add(highPriorityCheckbox)
@@ -456,7 +457,7 @@ class MainTab : JPanel(GridBagLayout()) {
             }.apply {
                 alignmentX = Component.LEFT_ALIGNMENT
             })
-            add(buildSimpleSeparator().apply {
+            add(GuiUtils.simpleSeparator().apply {
                 alignmentX = Component.LEFT_ALIGNMENT
             })
             add(JPanel(GridBagLayout()).apply {
@@ -508,7 +509,7 @@ class MainTab : JPanel(GridBagLayout()) {
             add(hasSeedersCheckbox.apply {
                 alignmentX = Component.LEFT_ALIGNMENT
             })
-            add(buildSimpleSeparator().apply {
+            add(GuiUtils.simpleSeparator().apply {
                 alignmentX = Component.LEFT_ALIGNMENT
             })
             add(JLabel("Количество сидов:").apply {
@@ -526,12 +527,6 @@ class MainTab : JPanel(GridBagLayout()) {
 
         }
         return container
-    }
-
-    fun buildSimpleSeparator(): JSeparator {
-        return JSeparator().apply {
-            border = EmptyBorder(5, 5, 5, 5)
-        }
     }
 
     fun buildFilterCheckbox(title: String, checked: Boolean = false): JCheckBox {

@@ -1,19 +1,18 @@
 package gui.tabs
 
 import utils.LogUtils
-import java.awt.Color
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
+import java.awt.*
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.text.SimpleAttributeSet
 import javax.swing.text.StyleConstants
-import javax.swing.text.html.HTMLEditorKit
+import javax.swing.text.StyledEditorKit
+
 
 class LogTab : JPanel(GridBagLayout()) {
 
     val logArea = JTextPane().apply {
-        editorKit = HTMLEditorKit()
+        editorKit = WrapEditorKit()
         isEditable = false
         border = EmptyBorder(5, 5, 5, 5)
     }
@@ -24,6 +23,38 @@ class LogTab : JPanel(GridBagLayout()) {
     ).apply {
 
     }
+
+    val logInfoRadioButton = buildLogRadioButton("все логи", true).apply {
+        addItemListener {
+            displayLogLevel = LogUtils.Level.INFO
+            updateLogs()
+        }
+    }
+    val logWarningRadioButton = buildLogRadioButton("предупреждения и ошибки").apply {
+        addItemListener {
+            displayLogLevel = LogUtils.Level.WARN
+            updateLogs()
+        }
+    }
+    val logErrorRadioButton = buildLogRadioButton("только ошибки").apply {
+        addItemListener {
+            displayLogLevel = LogUtils.Level.ERROR
+            updateLogs()
+        }
+    }
+    val logLevelRadioGroup = ButtonGroup().apply {
+        add(logInfoRadioButton)
+        add(logWarningRadioButton)
+        add(logErrorRadioButton)
+    }
+    val wrapCheckBox = JCheckBox("Перенос строк", true).apply {
+        addItemListener {
+            logArea.editorKit = if (isSelected) WrapEditorKit() else StyledEditorKit()
+            updateLogs()
+        }
+    }
+
+    var displayLogLevel = LogUtils.Level.INFO
 
     init {
         buildGui()
@@ -37,10 +68,32 @@ class LogTab : JPanel(GridBagLayout()) {
         val constraints = GridBagConstraints()
         constraints.gridy = 0
         constraints.gridx = 0
+        constraints.insets = Insets(2, 5, 2, 2)
+        constraints.fill = GridBagConstraints.HORIZONTAL
+        add(buildLogLevelSelector(), constraints)
+
+        constraints.gridx++
+        constraints.anchor = GridBagConstraints.NORTH
+        add(wrapCheckBox, constraints)
+
+        constraints.gridx = 0
+        constraints.gridy = 1
+        constraints.gridwidth = 2
         constraints.weightx = 1.0
         constraints.weighty = 1.0
         constraints.fill = GridBagConstraints.BOTH
         add(logScroll, constraints)
+    }
+
+    fun buildLogLevelSelector(): JPanel {
+        val container = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+        }
+        container.add(JLabel("Показывать:"))
+        container.add(logInfoRadioButton)
+        container.add(logWarningRadioButton)
+        container.add(logErrorRadioButton)
+        return container
     }
 
     private fun updateLogs() {
@@ -57,25 +110,37 @@ class LogTab : JPanel(GridBagLayout()) {
                 doc.insertString(doc.length, "Строка ${lineNum + 1}: некорректный формат лога!\n", textAttrs)
                 continue
             }
-            val lineType = LogUtils.getLineType(line)
-            if (lineType == null) {
+            val level = LogUtils.getLineType(line)
+            if (level == null) {
                 val textAttrs = SimpleAttributeSet()
                 StyleConstants.setForeground(textAttrs, Color.ORANGE)
                 doc.insertString(doc.length, "Строка ${lineNum + 1}: неизвестный префикс ${line[0]}!\n", textAttrs)
                 continue
             }
             val lineNoPrefix = line.substring(2)
-            addLogLine(lineType, lineNoPrefix)
+            addLogLine(level, lineNoPrefix)
         }
     }
 
     private fun addLogLine(level: LogUtils.Level, line: String) {
-        val textAttrs = SimpleAttributeSet()
-        when (level) {
-            LogUtils.Level.INFO -> {}
-            LogUtils.Level.WARN -> StyleConstants.setForeground(textAttrs, Color.YELLOW)
-            LogUtils.Level.ERROR -> StyleConstants.setForeground(textAttrs, Color.RED)
+        if (displayLogLevel == LogUtils.Level.INFO ||
+            displayLogLevel == level ||
+            level == LogUtils.Level.ERROR
+        ) {
+            val textAttrs = SimpleAttributeSet()
+            when (level) {
+                LogUtils.Level.INFO -> {}
+                LogUtils.Level.WARN -> StyleConstants.setForeground(textAttrs, Color.YELLOW)
+                LogUtils.Level.ERROR -> StyleConstants.setForeground(textAttrs, Color.RED)
+            }
+            logArea.styledDocument.insertString(logArea.styledDocument.length, "$line\n", textAttrs)
         }
-        logArea.styledDocument.insertString(logArea.styledDocument.length, "$line\n", textAttrs)
+    }
+
+    private fun buildLogRadioButton(title: String, checked: Boolean = false): JRadioButton {
+        val checkbox = JRadioButton(title)
+        checkbox.isSelected = checked
+        checkbox.alignmentX = Component.LEFT_ALIGNMENT
+        return checkbox
     }
 }
