@@ -18,6 +18,8 @@
     <orderEntry type="library" name="fasterxml.jackson.core.databind" level="project" />
     <orderEntry type="library" name="fasterxml.jackson.module.kotlin" level="project" />
     <orderEntry type="library" name="jetbrains.kotlin.stdlib.jdk8" level="project" />
+    <orderEntry type="library" name="jetbrains.kotlin.stdlib.jdk8-sources" level="project" />
+    <orderEntry type="library" name="jetbrains.kotlin.stdlib.jdk8-javadoc" level="project" />
     <orderEntry type="library" name="jetbrains.kotlin.reflect" level="project" />
   </component>
 </module>

@@ -1,5 +1,7 @@
 package gui.tabs
 
+import api.ForumSession
+import api.forumRetrofit
 import api.keeperRetrofit
 import db.TorrentRepository
 import entities.db.ForumItem
@@ -82,21 +84,13 @@ class MainTab : JPanel(GridBagLayout()) {
     }
 
     val testButton = buildControlButton("test", "Для теста разных функций") {
-
-
-        // TODO: 09.11.2022 сделать следующее:
-        // получаем:
-        // - торренты из клиента
-        // - торренты из базы (зачем?)
-        // - темы из базы
-        // смотрим есть ли хэш в Topics
-        // если есть, то
-        // с торрентом всё ок
-        // если нет, пытаемся получить id темы
-        // если не получили, значит раздача не с рутрекера
-        // если получили, то проверяем, есть ли такая тема
-        // если есть, то раздача обновлена и с этим надо что-то делать
-        // если нет, то раздача удалена?
+        if (!ForumSession.hasSession()){
+            println("Вы не авторизованы, идите и авторизуйтесь")
+            return@buildControlButton
+        }
+        val r = forumRetrofit.getReports(ConfigRepository.subsections[0].title).execute()
+        if (ForumSession.needAuth(r))
+            println("Сессия устарела, перейдите на вкладку авторизации и авторизуйтесь заново")
     }
 
     // Первый фильтр

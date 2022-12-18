@@ -15,10 +15,7 @@ import javax.swing.JOptionPane
 class SettingsWindow : JFrame("Настройки JVM-TLO") {
 
     var shouldRebuildRetrofits = false
-    val proxyTab = ProxyTab()
-    val subsectionsTab = SubsectionsTab()
-    val torrentClientsTab = TorrentClientsTab()
-    val tabs = arrayOf(
+    val tabs = arrayOf<Pair<String,JPanel>>(
         "Авторизация" to AuthSettingsTab(),
         "Прокси" to ProxyTab(),
         "Хранимые подразделы" to SubsectionsTab(),

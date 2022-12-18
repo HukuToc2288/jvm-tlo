@@ -48,13 +48,13 @@ class Qbittorrent(
         val response = api.login(login, password).execute()
         if (response.code() != 200)
             throw TorrentClientException("Ошибка ${response.code()}: ${response.body()}")
-        if (!cookieJar.hasCookie(SESSION_COOKIE_NAME)) {
+        if (!cookieJar.cookieStore.containsKey(SESSION_COOKIE_NAME)) {
             throw TorrentClientException("Не получено cookie сессии: ${response.body()}")
         }
     }
 
     override fun version(): String {
-        if (!cookieJar.hasCookie(SESSION_COOKIE_NAME))
+        if (!cookieJar.cookieStore.containsKey(SESSION_COOKIE_NAME))
             auth()  // нет сессии
         val response = api.version().execute()
         if (response.code() != 200) {

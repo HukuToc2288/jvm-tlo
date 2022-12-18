@@ -1,13 +1,12 @@
 package gui.settings
 
-import api.forumCookieJar
+import api.ForumSession
 import api.forumRetrofit
-import org.ini4j.spi.EscapeTool
+import gui.GuiUtils
 import org.jsoup.Jsoup
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import retrofit2.http.Url
 import utils.ConfigRepository
 import utils.ResetBackgroundListener
 import java.awt.*
@@ -15,35 +14,31 @@ import java.lang.Exception
 import java.net.URL
 import javax.imageio.ImageIO
 import javax.swing.*
-import javax.swing.event.DocumentEvent
-import javax.swing.event.DocumentListener
-import kotlin.math.log
-import kotlin.math.min
 
-// TODO: 06.12.2022 переписать на новый api когда понадобится эта вкладка
-class AuthSettingsTab : JPanel(GridBagLayout()) {
+class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
 
     var captchaId: String? = null
     lateinit var captchaParamName: String
-    val errorBackground = Color(255,0,0,191)
+    val errorBackground = Color(255, 0, 0, 191)
 
     // TODO: 02.11.2022 не все ошибки обработаны, так что лучше особо не косячить при входе
     val authButton = JButton("Авторизоваться").apply {
         addActionListener {
-            if (loginField.text.isEmpty()){
+            if (loginField.text.isEmpty()) {
                 loginField.background = errorBackground
                 return@addActionListener
             }
-            if (passwordField.text.isEmpty()){
+            if (passwordField.text.isEmpty()) {
                 passwordField.background = errorBackground
                 return@addActionListener
             }
-            if (captchaField.isVisible && captchaField.text.isEmpty()){
+            if (captchaField.isVisible && captchaField.text.isEmpty()) {
                 captchaField.background = errorBackground
                 return@addActionListener
             }
             isEnabled = false
-            showAuthStatus("Попытка авторизоваться...")
+            authStatusLabel.foreground = GuiUtils.defaultTextColor
+            authStatusLabel.text = "Попытка авторизоваться..."
             forumRetrofit.login(
                 loginField.text,
                 passwordField.text,
@@ -55,9 +50,12 @@ class AuthSettingsTab : JPanel(GridBagLayout()) {
                 }
             ).enqueue(object : Callback<String> {
                 override fun onResponse(call: Call<String>, response: Response<String>) {
-                    if (forumCookieJar.hasCookie("bb_session")) {
+                    if (ForumSession.hasSession()) {
                         // наверное мы победили
-                        showAuthCompleted("Авторизация успешна", "lime")
+                        ForumSession.save()
+                        ConfigRepository.trackerConfig.login = loginField.text
+                        buildHasAuthGui()
+                        //showAuthCompleted("Авторизация успешна", "lime")
                         return
                     }
                     val responsePage = Jsoup.parse(response.body())
@@ -78,13 +76,47 @@ class AuthSettingsTab : JPanel(GridBagLayout()) {
                     captchaField.isVisible = true
                     captchaLabel.isVisible = true
                     captchaField.text = ""
-                    showAuthCompleted(errorMessage, "red")
+                    authStatusLabel.foreground = Color.RED
+                    authStatusLabel.text = errorMessage
+                    this@apply.isEnabled = true
                 }
 
                 override fun onFailure(call: Call<String>, t: Throwable) {
-                    showAuthCompleted("Ошибка: "+t.localizedMessage,"red")
+                    authStatusLabel.foreground = Color.RED
+                    authStatusLabel.text = "Ошибка: " + t.localizedMessage
                 }
             })
+        }
+    }
+    val logoutButton = JButton("Выйти").apply {
+        addActionListener {
+            ForumSession.reset()
+            buildNoAuthGui()
+            authStatusLabel.text = ""
+        }
+    }
+    val checkSessionButton = JButton("Проверить доступ").apply {
+        addActionListener {
+            val hadSession = ForumSession.hasSession()
+            val response = try {
+                forumRetrofit.getTracker().execute()
+            } catch (e: Exception) {
+                authStatusLabel.foreground = Color.YELLOW
+                authStatusLabel.text = "Трекер недоступен: ${e.message}"
+                return@addActionListener
+            }
+            if (!hadSession) {
+                authStatusLabel.foreground = Color.GREEN
+                authStatusLabel.text = "Трекер доступен"
+            } else if (ForumSession.needAuth(response)) {
+                authStatusLabel.foreground = Color.YELLOW
+                authStatusLabel.text = "Трекер доступен, но сессия устарела — авторизуйтесь заново"
+                buildNoAuthGui()
+
+            } else {
+                authStatusLabel.foreground = Color.GREEN
+                authStatusLabel.text = "Трекер доступен, сессия актуальна"
+            }
         }
     }
     val loginField = JTextField().apply {
@@ -112,6 +144,15 @@ class AuthSettingsTab : JPanel(GridBagLayout()) {
     }
 
     private fun buildGui() {
+        if (ForumSession.hasSession())
+            buildHasAuthGui()
+        else
+            buildNoAuthGui()
+    }
+
+    private fun buildNoAuthGui() {
+        removeAll()
+
         val constraints = GridBagConstraints()
         constraints.insets = Insets(2, 2, 2, 2)
 
@@ -142,31 +183,44 @@ class AuthSettingsTab : JPanel(GridBagLayout()) {
         constraints.gridx = 0
         constraints.gridy = 5
         constraints.gridwidth = 2
+        add(checkSessionButton, constraints)
+
+        constraints.gridy = 6
         add(authButton, constraints)
 
         constraints.gridy = 4
         constraints.weighty = 1.0
         constraints.anchor = GridBagConstraints.NORTH
         add(authStatusLabel, constraints)
-
-        loginField.text = ConfigRepository.trackerConfig.login
-        passwordField.text = ConfigRepository.trackerConfig.password
-    }
-
-    private fun showAuthStatus(message: String, color: String? = null) {
-        authStatusLabel.text = if (color != null) {
-            "<html><font color='$color'>$message</font></html"
-        } else {
-            message
-        }
-    }
-
-    private fun showAuthCompleted(message: String, color: String? = null) {
-        authStatusLabel.text = if (color != null) {
-            "<html><font color='$color'>$message</font></html"
-        } else {
-            message
-        }
         authButton.isEnabled = true
+        loginField.text = ConfigRepository.trackerConfig.login
+        repaint()
+    }
+
+    private fun buildHasAuthGui() {
+        removeAll()
+
+        val constraints = GridBagConstraints()
+        constraints.insets = Insets(2, 2, 2, 2)
+
+        constraints.anchor = GridBagConstraints.CENTER
+        constraints.gridy = 0
+        constraints.gridx = 0
+        add(authStatusLabel, constraints)
+
+        constraints.gridy++
+        add(checkSessionButton, constraints)
+
+        constraints.gridy++
+        add(logoutButton, constraints)
+
+        authStatusLabel.foreground = GuiUtils.defaultTextColor
+        authStatusLabel.text = "Вы авторизованы как ${ConfigRepository.trackerConfig.login}"
+        passwordField.text = ""
+        repaint()
+    }
+
+    override fun saveSettings(): Boolean {
+        return true
     }
 }

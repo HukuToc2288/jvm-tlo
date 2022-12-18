@@ -1,6 +1,5 @@
 package api
 
-import okhttp3.MultipartBody
 import retrofit2.Call
 import retrofit2.http.*
 
@@ -15,4 +14,13 @@ interface ForumApi {
         @FieldMap captcha: Map<String,String> = emptyMap(),
         @Field("login", encoded = true) login: String = "%C2%F5%EE%E4",
     ): Call<String>
+
+    @GET("/forum/search.php")
+    fun getReports(
+        @Query("nm") topicName: String,
+        @Query("f") forumId: Int = 1584
+    ): Call<String>
+
+    @GET("/forum/tracker.php")
+    fun getTracker(): Call<String>
 }

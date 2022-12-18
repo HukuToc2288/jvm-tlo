@@ -1,8 +1,8 @@
 package entities.config
 
 class TrackerConfig(
-    var login: String = "",
-    var password: String = "",
+    var login: String? = null,
+    var sessionCookie: String? = null,
     var apiKey: String = "",
     var keeperId: Int = 0
 )
