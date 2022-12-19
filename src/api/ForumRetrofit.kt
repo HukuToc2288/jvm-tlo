@@ -8,7 +8,6 @@ import retrofit2.converter.scalars.ScalarsConverterFactory
 import utils.ConfigRepository
 import java.net.InetSocketAddress
 import java.net.Proxy
-import java.util.*
 
 // TODO: 03.11.2022 SOCKS4 прокси не работают, и с большой вероятностью не работают HTTPS
 // TODO: 03.11.2022 прокси с авторизацией
@@ -16,6 +15,9 @@ import java.util.*
 val forumCookieJar = SingleUrlCookieJar()
 
 var forumRetrofit = createForumApi()
+    private set
+
+lateinit var forumClient: OkHttpClient
     private set
 
 private fun createForumApi(): ForumApi {
@@ -43,10 +45,11 @@ private fun createForumApi(): ForumApi {
             clientBuilder.proxy(proxy)
         }
     }
+    forumClient = clientBuilder.build()
     return Retrofit.Builder()
         .baseUrl("https://rutracker.org/forum/")
         .addConverterFactory(ScalarsConverterFactory.create())
-        .client(clientBuilder.build())
+        .client(forumClient)
         .build()
         .create(ForumApi::class.java)
 

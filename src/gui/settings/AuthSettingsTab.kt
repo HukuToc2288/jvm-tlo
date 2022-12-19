@@ -1,15 +1,15 @@
 package gui.settings
 
 import api.ForumSession
+import api.forumClient
 import api.forumRetrofit
 import gui.GuiUtils
+import okhttp3.Request
 import org.jsoup.Jsoup
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import utils.ConfigRepository
 import utils.ResetBackgroundListener
 import java.awt.*
+import java.io.IOException
 import java.lang.Exception
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -42,25 +42,34 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
             isEnabled = false
             authStatusLabel.foreground = GuiUtils.defaultTextColor
             authStatusLabel.text = "Попытка авторизоваться..."
-            forumRetrofit.login(
-                loginField.text,
-                passwordField.text,
-                captchaId,
-                if (captchaId != null) {
-                    mapOf(captchaParamName to captchaField.text)
-                } else {
-                    emptyMap()
-                }
-            ).enqueue(object : Callback<String> {
-                override fun onResponse(call: Call<String>, response: Response<String>) {
+            Thread {
+                try {
+                    val response = forumRetrofit.login(
+                        loginField.text,
+                        passwordField.text,
+                        captchaId,
+                        if (captchaId != null) {
+                            mapOf(captchaParamName to captchaField.text)
+                        } else {
+                            emptyMap()
+                        }
+                    ).execute()
+
                     if (ForumSession.hasSession()) {
                         // наверное мы победили
                         ForumSession.save()
                         ConfigRepository.trackerConfig.login = loginField.text
+                        try {
+                            // попробуем получить "красивый" логин и ключи
+                            val responsePage = Jsoup.parse(response.body())
+                            val profileLink = responsePage.selectFirst("#logged-in-username")
+                            ConfigRepository.trackerConfig.login = profileLink?.text() ?: throw NullPointerException()
+                            requestKeeperKeys(profileLink.attr("href"))
+                        } catch (e: Exception) {
+                            ConfigRepository.trackerConfig.login = loginField.text
+                        }
                         buildHasAuthGui()
-                        authStatusLabel.foreground = Color.GREEN
-                        authStatusLabel.text = "Авторизация успешна"
-                        return
+                        return@Thread
                     }
                     val responsePage = Jsoup.parse(response.body())
 
@@ -83,13 +92,11 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
                     authStatusLabel.foreground = Color.RED
                     authStatusLabel.text = errorMessage
                     this@apply.isEnabled = true
-                }
-
-                override fun onFailure(call: Call<String>, t: Throwable) {
+                } catch (e: IOException) {
                     authStatusLabel.foreground = Color.RED
-                    authStatusLabel.text = "Ошибка: " + t.localizedMessage
+                    authStatusLabel.text = "Ошибка: " + e.localizedMessage
                 }
-            })
+            }.start()
         }
     }
     val logoutButton = JButton("Выйти").apply {
@@ -105,7 +112,7 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
             val response = try {
                 forumRetrofit.getTracker().execute()
             } catch (e: Exception) {
-                authStatusLabel.foreground = Color.YELLOW
+                authStatusLabel.foreground = Color.RED
                 authStatusLabel.text = "Трекер недоступен: ${e.message}"
                 return@addActionListener
             }
@@ -164,7 +171,13 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
         add(JLabel("id"))
         add(idKeyField)
     }
-    val loadKeeperKeysButton = JButton("Запросить с сервера")
+    val loadKeeperKeysButton = JButton("Обновить").apply {
+        addActionListener {
+            Thread {
+                requestKeeperKeys(null)
+            }.start()
+        }
+    }
     val manualKeeperKeysButton = JButton("Ввести вручную").apply {
         addActionListener {
             keeperKeysContainer.isVisible = !keeperKeysContainer.isVisible
@@ -231,7 +244,8 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
         authButton.isEnabled = true
         loginField.text = ConfigRepository.trackerConfig.login
 
-        addKeeperKeysLayout()
+        revalidate()
+        repaint()
     }
 
     private fun buildHasAuthGui() {
@@ -259,10 +273,11 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
         constraints.anchor = GridBagConstraints.SOUTH
         add(authStatusLabel, constraints)
 
-        authStatusLabel.foreground = GuiUtils.defaultTextColor
         passwordField.text = ""
 
         addKeeperKeysLayout()
+        revalidate()
+        repaint()
     }
 
     fun addKeeperKeysLayout() {
@@ -274,14 +289,7 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
         constraints.fill = GridBagConstraints.HORIZONTAL
         constraints.anchor = GridBagConstraints.NORTH
         val keeperKeysLayout = JPanel(FlowLayout(0)).apply {
-            add(
-                JLabel(
-                    if (ConfigRepository.trackerConfig.keysDate == null)
-                        "Хранительские ключи отсутствуют"
-                    else
-                        "Хранительские получены ${ConfigRepository.trackerConfig.keysDate}"
-                )
-            )
+            add(JLabel("Хранительские ключи:"))
             add(loadKeeperKeysButton)
             add(manualKeeperKeysButton)
         }
@@ -290,11 +298,78 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
         constraints.weighty = 1.0
         constraints.gridy++
         add(keeperKeysContainer, constraints)
-        repaint()
     }
 
-    fun requestKeeperKeys(){
 
+    @Throws(Exception::class)
+    fun requestKeeperKeys(profileLink: String?) {
+        authStatusLabel.foreground = GuiUtils.defaultTextColor
+        if (!ForumSession.hasSession()){
+            authStatusLabel.text = "Сначала авторизуйтесь"
+            return
+        }
+        authStatusLabel.text = "Запрос хранительских ключей..."
+        loadKeeperKeysButton.isEnabled = false
+        try {
+            // ключи вытаскиваем в 2 этапа, получаем ссылку на профиль, если её нет, а затем получаем ключи со страницы
+            val profileLinkNotNull = profileLink
+                ?: try {
+                    val response = forumRetrofit.getTracker().execute()
+                    if (ForumSession.needAuth(response)){
+                        authStatusLabel.text = "Сессия устарела, авторизуйтесь заново"
+                        buildNoAuthGui()
+                        return
+                    }
+                    if (response.body() == null)
+                        throw Exception(response.message())
+                    val responsePage = Jsoup.parse(response.body()!!)
+                    responsePage.selectFirst("#logged-in-username")?.attr("href")
+                        ?: throw NullPointerException("Не удалось найти ссылку на профиль")
+                } catch (e: Exception) {
+                    throw Exception("Не получена ссылка на профиль: " + e.localizedMessage)
+                }
+
+            try {
+                val response = forumClient.newCall(
+                    Request.Builder()
+                        .get()
+                        .url(profileLinkNotNull)
+                        .build()
+                ).execute()
+                if (response.body() == null)
+                    throw Exception(response.message())
+                val responsePage = Jsoup.parse(response.body()!!.string())
+                val keysItems = responsePage.selectFirst("th:matchesOwn(Хранительские ключи:)")?.parent()
+                    ?.selectFirst("td")?.text()?.split(' ')
+                    ?: throw Exception("Не удалось найти ключи на странице. Если вы ещё не стали официальным хранителем, то, скорее всего, у вас их нет")
+                if (keysItems.size % 2 != 0) throw Exception("Не удалось разобрать ключи. Возможно, изменился формат ключей на сайте")
+                for (i in keysItems.indices step 2) {
+                    when (keysItems[i]) {
+                        "bt:" -> btKeyField
+                        "api:" -> apiKeyField
+                        "id:" -> idKeyField
+                        else -> null
+                    }?.text = keysItems[i + 1]
+                }
+                if (btKeyField.text.isEmpty() || apiKeyField.text.isEmpty() || idKeyField.text.isEmpty())
+                    throw Exception("Не все ключи были получены. Возможно, изменился формат ключей на сайте")
+            } catch (e: Exception) {
+                throw Exception("Не получены ключи: " + e.localizedMessage)
+            }
+            with(ConfigRepository.trackerConfig) {
+                btKey = btKeyField.text
+                apiKey = apiKeyField.text
+                idKey = idKeyField.text
+                keysDate = keeperKeysDateFormat.format(Date())
+            }
+            authStatusLabel.foreground = Color.GREEN
+            authStatusLabel.text = "Ключи успешно получены"
+        } catch (e: Exception) {
+            authStatusLabel.foreground = Color.RED
+            authStatusLabel.text = "Не получены ключи: " + e.localizedMessage
+        } finally {
+            loadKeeperKeysButton.isEnabled = true
+        }
     }
 
     override fun saveSettings(): Boolean {

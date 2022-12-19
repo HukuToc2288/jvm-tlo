@@ -10,6 +10,7 @@
     <SOURCES>
       <root url="jar://$USER_HOME$/.ideaLibSources/retrofit-2.9.0-sources.jar!/" />
       <root url="jar://$USER_HOME$/.ideaLibSources/retrofit-2.9.0-sources.jar!/" />
+      <root url="jar://$USER_HOME$/.ideaLibSources/okhttp-3.14.9-sources.jar!/" />
     </SOURCES>
   </library>
 </component>
