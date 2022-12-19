@@ -372,7 +372,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             throw IOException(errorMessage + ": " + e.localizedMessage)
         }
         if (response.body() == null) {
-            throw NullPointerException("$errorMessage: ${response.code()}")
+            throw NullPointerException("$errorMessage: ${response.message()}")
         } else {
             return response.body()!!
         }
