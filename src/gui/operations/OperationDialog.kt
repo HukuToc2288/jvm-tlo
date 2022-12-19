@@ -112,6 +112,10 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
             onTaskCancelled()
             return true
         }
+        if (result == Result.FAILED){
+            finalize.invoke()
+            return true
+        }
         return false
     }
 

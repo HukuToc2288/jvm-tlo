@@ -84,13 +84,7 @@ class MainTab : JPanel(GridBagLayout()) {
     }
 
     val testButton = buildControlButton("test", "Для теста разных функций") {
-        if (!ForumSession.hasSession()){
-            println("Вы не авторизованы, идите и авторизуйтесь")
-            return@buildControlButton
-        }
-        val r = forumRetrofit.getReports(ConfigRepository.subsections[0].title).execute()
-        if (ForumSession.needAuth(r))
-            println("Сессия устарела, перейдите на вкладку авторизации и авторизуйтесь заново")
+
     }
 
     // Первый фильтр

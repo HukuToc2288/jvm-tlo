@@ -1,21 +1,24 @@
 package gui.operations
 
+import api.ForumSession
+import api.forumClient
+import api.forumRetrofit
 import api.keeperRetrofit
 import db.TorrentRepository
 import entities.db.FullUpdateTopic
 import entities.db.SeedsUpdateTopic
-import entities.keeper.ForumLimit
 import entities.torrentclient.TorrentClientTorrent
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import retrofit2.Call
 import utils.ConfigRepository
 import utils.LogUtils
 import utils.pluralForum
 import java.awt.Frame
 import java.io.IOException
+import java.lang.Exception
 import kotlin.math.min
-
 import java.util.HashSet
-import java.util.StringJoiner
 
 
 class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновление списка раздач") {
@@ -47,8 +50,8 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             return
         // TODO: 13.11.2022 обновлять хранителей с форума
         val keepersMap = try {
-            responseOrThrow(keeperRetrofit.keepersUserData(),"Не получены ID хранителей").keepers
-        }catch (e: Exception){
+            responseOrThrow(keeperRetrofit.keepersUserData(), "Не получены ID хранителей").keepers
+        } catch (e: Exception) {
             showNonCriticalError()
             LogUtils.w(e.localizedMessage)
             emptyMap()
@@ -155,6 +158,37 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 TorrentRepository.appendFullUpdateTopics(fullUpdateTopics)
                 TorrentRepository.commitTopics(subsection, true)
                 TorrentRepository.commitKeepersSeeders(true)
+
+                // получаем отчёты хранителей
+                if (!ForumSession.hasSession()) {
+                    throw Exception("Вы не авторизованы на форуме. Авторизуйтесь в настройках")
+                }
+                val searchResponse = forumRetrofit.searchReportsTopic(subsectionEntry.title).execute()
+                if (ForumSession.needAuth(searchResponse)) {
+                    throw Exception("Сессия устарела. Вам нужно заново авторизоваться в настройках")
+                }
+                val reportsTopicsElements = Jsoup.parse(searchResponse.body()!!).select("a[href].topictitle")
+                if (reportsTopicsElements.isEmpty()) {
+                    throw Exception("Не найдены отчёты для подраздела $subsection")
+                }
+                for (element in reportsTopicsElements) {
+                    var reportsTopicLink = element.attr("href") ?: continue
+                    var reportsPage: Document
+                    do {
+                        reportsPage = Jsoup.parse(forumRetrofit.loadPage(reportsTopicLink).execute().body()!!)
+                        // TODO: 19.12.2022 что-то делаем со страницей
+                        println("Открыта страница с отчётами $reportsTopicLink")
+                    } while (
+                        reportsPage.selectFirst("a.pg:matchesOwn(След.)")?.attr("href").let {
+                            if (it != null) {
+                                reportsTopicLink = it
+                                true
+                            } else {
+                                false
+                            }
+                        })
+                }
+
                 LogUtils.i("Обновление подраздела $subsection успешно завершено")
             } catch (e: Exception) {
                 LogUtils.w("Не удалось обновить подраздел ${subsection}: " + e.localizedMessage)
