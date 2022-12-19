@@ -116,10 +116,7 @@ class ProxyTab : JPanel(GridBagLayout()), SavableTab {
             proxyForum = proxyForumCheckbox.isSelected
             proxyApi = proxyApiCheckbox.isSelected
 
-            if (!proxyApiCheckbox.isSelected && !proxyForumCheckbox.isSelected)
-                return true
-
-            if (!(hostField.verifyNotEmpty()))
+            if ((proxyApiCheckbox.isSelected || proxyForumCheckbox.isSelected) && !hostField.verifyNotEmpty())
                 return false
 
             val proxy = proxies[0]

@@ -1,6 +1,9 @@
 package gui
 
+import api.forumRetrofit
+import api.keeperRetrofit
 import api.rebuildForumApi
+import api.rebuildKeeperApi
 import gui.settings.*
 import utils.ConfigRepository
 import java.awt.Dimension
@@ -14,10 +17,11 @@ import javax.swing.JOptionPane
 
 class SettingsWindow : JFrame("Настройки JVM-TLO") {
 
-    var shouldRebuildRetrofits = false
-    val tabs = arrayOf<Pair<String,JPanel>>(
+    private var shouldRebuildRetrofits = false
+    private val proxyTab = ProxyTab()
+    private val tabs = arrayOf<Pair<String,JPanel>>(
         "Авторизация" to AuthSettingsTab(),
-        "Прокси" to ProxyTab(),
+        "Прокси" to proxyTab,
         "Хранимые подразделы" to SubsectionsTab(),
         "Торрент-клиенты" to TorrentClientsTab(),
     )
@@ -35,9 +39,14 @@ class SettingsWindow : JFrame("Настройки JVM-TLO") {
             tabbedPane.addTab(tab.first, tab.second)
         }
         tabbedPane.addChangeListener {
-            if (tabbedPane.selectedIndex == 1) {
+            if (tabbedPane.selectedComponent == proxyTab) {
                 // обновим настройки прокси при покидании этой вкладки
                 shouldRebuildRetrofits = true
+            } else if (shouldRebuildRetrofits){
+                shouldRebuildRetrofits = false
+                proxyTab.saveSettings()
+                rebuildForumApi()
+                rebuildKeeperApi()
             }
         }
 
@@ -73,6 +82,11 @@ class SettingsWindow : JFrame("Настройки JVM-TLO") {
                             showError = false
                         }
                     }
+                }
+                // пересоздаём API
+                if (tabbedPane.selectedComponent == proxyTab){
+                    rebuildForumApi()
+                    rebuildKeeperApi()
                 }
                 // записываем в постоянную память
                 tryWriteConfig()
