@@ -12,6 +12,8 @@ import utils.ResetBackgroundListener
 import java.awt.*
 import java.lang.Exception
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.*
 import javax.imageio.ImageIO
 import javax.swing.*
 
@@ -20,6 +22,7 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
     var captchaId: String? = null
     lateinit var captchaParamName: String
     val errorBackground = Color(255, 0, 0, 191)
+    val keeperKeysDateFormat = SimpleDateFormat("dd-MM-yy")
 
     // TODO: 02.11.2022 не все ошибки обработаны, так что лучше особо не косячить при входе
     val authButton = JButton("Авторизоваться").apply {
@@ -55,7 +58,8 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
                         ForumSession.save()
                         ConfigRepository.trackerConfig.login = loginField.text
                         buildHasAuthGui()
-                        //showAuthCompleted("Авторизация успешна", "lime")
+                        authStatusLabel.foreground = Color.GREEN
+                        authStatusLabel.text = "Авторизация успешна"
                         return
                     }
                     val responsePage = Jsoup.parse(response.body())
@@ -139,6 +143,37 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
 
     val authStatusLabel = JLabel("", SwingConstants.CENTER)
 
+    val btKeyField = JTextField().apply {
+        text = ConfigRepository.trackerConfig.btKey
+        columns = 10
+    }
+    val apiKeyField = JTextField().apply {
+        text = ConfigRepository.trackerConfig.apiKey
+        columns = 10
+    }
+    val idKeyField = JTextField().apply {
+        text = ConfigRepository.trackerConfig.btKey
+        columns = 10
+    }
+    val keeperKeysContainer = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+        isVisible = false
+        add(JLabel("bt"))
+        add(btKeyField)
+        add(JLabel("api"))
+        add(apiKeyField)
+        add(JLabel("id"))
+        add(idKeyField)
+    }
+    val loadKeeperKeysButton = JButton("Запросить с сервера")
+    val manualKeeperKeysButton = JButton("Ввести вручную").apply {
+        addActionListener {
+            keeperKeysContainer.isVisible = !keeperKeysContainer.isVisible
+        }
+    }
+    val authLabel = JLabel().apply {
+        font = Font(font.family, Font.BOLD, 16)
+    }
+
     init {
         buildGui()
     }
@@ -154,7 +189,7 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
         removeAll()
 
         val constraints = GridBagConstraints()
-        constraints.insets = Insets(2, 2, 2, 2)
+        constraints.insets = Insets(2, 5, 2, 5)
 
         constraints.gridy = 0
         add(JLabel("Логин"), constraints)
@@ -181,43 +216,85 @@ class AuthSettingsTab : JPanel(GridBagLayout()), SavableTab {
         add(captchaImage, constraints)
 
         constraints.gridx = 0
-        constraints.gridy = 5
+        constraints.gridy = 50
         constraints.gridwidth = 2
         add(checkSessionButton, constraints)
 
-        constraints.gridy = 6
+        constraints.gridy = 51
         add(authButton, constraints)
 
-        constraints.gridy = 4
+        constraints.gridy = 49
         constraints.weighty = 1.0
-        constraints.anchor = GridBagConstraints.NORTH
+        constraints.anchor = GridBagConstraints.SOUTH
         add(authStatusLabel, constraints)
+
         authButton.isEnabled = true
         loginField.text = ConfigRepository.trackerConfig.login
-        repaint()
+
+        addKeeperKeysLayout()
     }
 
     private fun buildHasAuthGui() {
         removeAll()
 
         val constraints = GridBagConstraints()
-        constraints.insets = Insets(2, 2, 2, 2)
+        constraints.insets = Insets(2, 5, 2, 5)
 
-        constraints.anchor = GridBagConstraints.CENTER
+        constraints.anchor = GridBagConstraints.WEST
         constraints.gridy = 0
         constraints.gridx = 0
-        add(authStatusLabel, constraints)
+        authLabel.text = "Вы авторизованы как ${ConfigRepository.trackerConfig.login}"
+        add(authLabel, constraints)
 
-        constraints.gridy++
+        constraints.fill = GridBagConstraints.HORIZONTAL
+        constraints.gridy = 50
+        constraints.gridwidth = 2
         add(checkSessionButton, constraints)
 
-        constraints.gridy++
+        constraints.gridy = 51
         add(logoutButton, constraints)
 
+        constraints.gridy = 49
+        constraints.weighty = 1.0
+        constraints.anchor = GridBagConstraints.SOUTH
+        add(authStatusLabel, constraints)
+
         authStatusLabel.foreground = GuiUtils.defaultTextColor
-        authStatusLabel.text = "Вы авторизованы как ${ConfigRepository.trackerConfig.login}"
         passwordField.text = ""
+
+        addKeeperKeysLayout()
+    }
+
+    fun addKeeperKeysLayout() {
+        val constraints = GridBagConstraints()
+        constraints.insets = Insets(2, 2, 2, 2)
+        constraints.gridy = 10
+        constraints.gridwidth = 2
+        constraints.weightx = 1.0
+        constraints.fill = GridBagConstraints.HORIZONTAL
+        constraints.anchor = GridBagConstraints.NORTH
+        val keeperKeysLayout = JPanel(FlowLayout(0)).apply {
+            add(
+                JLabel(
+                    if (ConfigRepository.trackerConfig.keysDate == null)
+                        "Хранительские ключи отсутствуют"
+                    else
+                        "Хранительские получены ${ConfigRepository.trackerConfig.keysDate}"
+                )
+            )
+            add(loadKeeperKeysButton)
+            add(manualKeeperKeysButton)
+        }
+        add(keeperKeysLayout, constraints)
+
+        constraints.weighty = 1.0
+        constraints.gridy++
+        add(keeperKeysContainer, constraints)
         repaint()
+    }
+
+    fun requestKeeperKeys(){
+
     }
 
     override fun saveSettings(): Boolean {

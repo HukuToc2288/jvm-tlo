@@ -16,6 +16,8 @@
     <JAVADOC />
     <SOURCES>
       <root url="jar://$USER_HOME$/.ideaLibSources/jackson-databind-2.10.1-sources.jar!/" />
+      <root url="jar://$USER_HOME$/.ideaLibSources/retrofit-2.9.0-sources.jar!/" />
+      <root url="jar://$USER_HOME$/.ideaLibSources/retrofit-2.9.0-sources.jar!/" />
     </SOURCES>
   </library>
 </component>
