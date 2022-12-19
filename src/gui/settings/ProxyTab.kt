@@ -53,12 +53,14 @@ class ProxyTab : JPanel(GridBagLayout()), SavableTab {
 
         constraints.anchor = GridBagConstraints.WEST
         constraints.gridwidth = 2
-        constraints.fill = GridBagConstraints.HORIZONTAL
+        constraints.weightx = 1.0
+        constraints.anchor = GridBagConstraints.NORTHWEST
         add(proxyForumCheckbox, constraints)
 
         constraints.gridy = 1
         add(proxyApiCheckbox, constraints)
 
+        constraints.weightx = 0.0
         constraints.gridy = 2
         constraints.gridwidth = 1
         constraints.fill = GridBagConstraints.NONE
@@ -97,6 +99,7 @@ class ProxyTab : JPanel(GridBagLayout()), SavableTab {
         with(ConfigRepository.proxyConfig) {
             proxyForumCheckbox.isSelected = proxyForum
             proxyApiCheckbox.isSelected = proxyApi
+            setParametersVisibility(proxyApi || proxyForum)
             val proxy = proxies[0]
             proxyTypeSelector.selectedItem = proxy.type
             hostField.text = proxy.hostname
