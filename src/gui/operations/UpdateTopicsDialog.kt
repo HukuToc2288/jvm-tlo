@@ -1,11 +1,11 @@
 package gui.operations
 
 import api.ForumSession
-import api.forumClient
 import api.forumRetrofit
 import api.keeperRetrofit
 import db.TorrentRepository
 import entities.db.FullUpdateTopic
+import entities.db.KeeperReportItem
 import entities.db.SeedsUpdateTopic
 import entities.torrentclient.TorrentClientTorrent
 import org.jsoup.Jsoup
@@ -16,13 +16,23 @@ import utils.LogUtils
 import utils.pluralForum
 import java.awt.Frame
 import java.io.IOException
-import java.lang.Exception
+import java.text.DateFormatSymbols
+import java.text.ParseException
+import java.text.SimpleDateFormat
+import java.util.*
+import kotlin.collections.ArrayList
 import kotlin.math.min
-import java.util.HashSet
 
 
 class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновление списка раздач") {
 
+    private val forumDateFormat = SimpleDateFormat("").apply {
+        val ru = Locale("ru")
+        locale = ru
+        val symbols = DateFormatSymbols.getInstance(ru)
+        symbols.months = arrayOf("Янв", "Фев", "Мар", "Апр", "Мая", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек")
+        dateFormatSymbols = symbols
+    }
 
     override fun doTask() {
         val updateTorrentsThread = Thread {
@@ -73,9 +83,13 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 LogUtils.i("Не требуется обновление для подраздела $subsection")
                 continue
             }
+            // TODO: 21.12.2022 переделать косяки с петлёй
             setCurrentText("Обновление подраздела $subsection")
             try {
                 // запрашиваем инфу о раздачах в подразделе с сервера
+                run block@ {
+
+                }
                 if (cancelTaskIfRequested {})
                     return
                 val forumTorrents = responseOrThrow(
@@ -90,6 +104,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 val seedsUpdateTopics = HashSet<SeedsUpdateTopic>()
                 val topicsToQuery = HashMap<Int, List<Any>>()
                 val keepersSeeders = HashSet<Pair<Int, String>>() // номер темы и ник хранителя
+                val keepersReports = ArrayList<KeeperReportItem>()
                 var processedForumTorrents = 0
                 TorrentRepository.createTempKeepersSeeders()
                 for (forumTorrent in forumTorrents) {
@@ -176,6 +191,60 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                     var reportsPage: Document
                     do {
                         reportsPage = Jsoup.parse(forumRetrofit.loadPage(reportsTopicLink).execute().body()!!)
+                        val postElements = reportsPage.select("tbody[id^=post_]")
+                        for (postElement in postElements) {
+                            val keeperNick = postElement.selectFirst("p.nick")?.select("a")?.text()
+                            if (keeperNick == null) {
+                                showNonCriticalAndLog("Пост ${postElement.id()}: Не получен ник хранителя")
+                                continue
+                            }
+                            if (keeperNick == "StatsBot")
+                                continue
+                            val updateDateString = try {
+                                // пробуем получить дату редактирования
+                                val postedSinceText = postElement.selectFirst("span.posted_since")?.text()
+                                postedSinceText?.substring(postedSinceText.indexOf("ред. ") + 5)
+                                    ?: throw NullPointerException()
+                            } catch (e: Exception) {
+                                // нет даты редактирования
+                                postElement.selectFirst("a.p-link")?.text()
+                            }
+                            if (updateDateString == null) {
+                                showNonCriticalAndLog("Пост ${postElement.id()}: Не получена дата сообщения")
+                                continue
+                            }
+                            val updateDate = try {
+                                forumDateFormat.parse(updateDateString)
+                            } catch (e: ParseException) {
+                                showNonCriticalAndLog("Пост ${postElement.id()}: Неправильный формат даты: $updateDateString")
+                                continue
+                            }.time / 1000
+                            // теперь можно извлекать ссылки
+                            val topicsLinksElements = postElement.select("a.postLink")
+                            for (topicLinkElement in topicsLinksElements) {
+                                var topicId: Int? = null
+                                var completed: Boolean? = null
+                                if (topicLinkElement.text().matches(Regex("viewtopic.php\\?t=\\d+$"))) {
+                                    topicId = topicLinkElement.text().replace(Regex(".*?(\\d*)$"), "\$1").toIntOrNull()
+                                    completed = true
+                                } else if (topicLinkElement.text().matches(Regex("viewtopic.php\\?t=\\d+#dl\$"))) {
+                                    topicId =
+                                        topicLinkElement.text().replace(Regex(".*?(\\d*)#dl\$"), "\$1").toIntOrNull()
+                                    completed = false
+                                }
+                                if (topicId == null || completed == null)
+                                    continue
+                                keepersReports.add(
+                                    KeeperReportItem(
+                                        topicId,
+                                        keeperNick,
+                                        updateDate.toInt(),
+                                        completed
+                                    )
+                                )
+
+                            }
+                        }
                         // TODO: 19.12.2022 что-то делаем со страницей
                         println("Открыта страница с отчётами $reportsTopicLink")
                     } while (
@@ -385,8 +454,9 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         TorrentRepository.updateTopicsUpdated(updatedTopicsHashes, true)
     }
 
-    fun updateKeepersSeeders() {
-
+    fun showNonCriticalAndLog(message: String) {
+        showNonCriticalError()
+        LogUtils.w(message)
     }
 
     fun <T, E> Map<T, E>.getKeysByValue(value: E): Set<T> {

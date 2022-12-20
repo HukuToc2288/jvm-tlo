@@ -553,6 +553,45 @@ object TorrentRepository {
         )
     }
 
+    fun createTempKeepers() {
+        connection.createStatement().execute(
+            "CREATE TEMPORARY TABLE KeepersNew AS" +
+                    " SELECT id,nick,posted,complete FROM KeepersSeeders" +
+                    " LIMIT 0"
+        )
+    }
+
+    fun appendKeepers(keeperReports: Collection<KeeperReportItem>) {
+        if (keeperReports.isEmpty())
+            return
+        val insertTempStatement =
+            connection.prepareStatement(
+                "INSERT INTO temp.KeepersNew (id,nick,posted,complete)" +
+                        " VALUES (?,?,?,?)"
+            )
+        for (report in keeperReports) {
+            insertTempStatement.setInt(1, report.topicId)
+            insertTempStatement.setString(2, report.nick)
+            insertTempStatement.setInt(3, report.posted)
+            insertTempStatement.setBoolean(4, report.completed)
+        }
+        insertTempStatement.executeBatch()
+    }
+
+    fun commitKeepers(deleteOther: Boolean) {
+        connection.createStatement()
+            .execute("INSERT INTO Keepers(id,nick,posted,complete) SELECT id,nick,posted,complete FROM temp.KeepersNew")
+
+        if (deleteOther)
+            connection.createStatement().execute(
+                "DELETE FROM Keepers WHERE id || nick NOT IN (" +
+                        " SELECT Keepers.id || Keepers.nick FROM temp.KeepersNew" +
+                        " LEFT JOIN Keepers ON temp.KeepersNew.id = Keepers.id AND temp.KeepersNew.nick = Keepers.nick" +
+                        " WHERE Keepers.id IS NOT NULL)"
+            )
+        connection.createStatement().execute("DROP TABLE temp.KeepersSeedersNew")
+    }
+
     fun appendKeepersSeeders(keepersSeeders: Set<Pair<Int, String>>) {
         if (keepersSeeders.isEmpty())
             return
