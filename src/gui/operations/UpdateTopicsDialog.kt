@@ -26,18 +26,23 @@ import kotlin.math.min
 
 class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновление списка раздач") {
 
-    private val forumDateFormat = SimpleDateFormat("").apply {
+    private val forumDateFormat = SimpleDateFormat("dd-MMM-yy hh:mm").apply {
         val ru = Locale("ru")
         locale = ru
         val symbols = DateFormatSymbols.getInstance(ru)
-        symbols.months = arrayOf("Янв", "Фев", "Мар", "Апр", "Мая", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек")
+        symbols.months = arrayOf("Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек")
         dateFormatSymbols = symbols
     }
+
+    private val packSize = 1000
 
     override fun doTask() {
         val updateTorrentsThread = Thread {
             try {
                 updateSubsections()
+                if (cancelTaskIfRequested { })
+                    return@Thread
+                updateKeepersReports()
                 if (cancelTaskIfRequested { })
                     return@Thread
                 updateTopicsFromClient()
@@ -54,7 +59,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
 
     fun updateSubsections() {
         setFullProgress(0, ConfigRepository.subsections.size)
-        setFullText("Обновляются темы в ${ConfigRepository.subsections.size.pluralForum("подраздела", "подразделов")}")
+        setFullText("Обновляются темы в ${ConfigRepository.subsections.size.pluralForum("подразделе", "подразделах")}")
         setCurrentText("Получение данных с сервера...")
         if (cancelTaskIfRequested {})
             return
@@ -67,7 +72,6 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             emptyMap()
         }
         val torrentStatus = setOf(0, 2, 3, 8, 10)
-        val packSize = 1000
         if (cancelTaskIfRequested {})
             return
         val limit = try {
@@ -77,6 +81,13 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             LogUtils.w(e.localizedMessage)
             100
         }
+        // сиды-хранители не привязаны к подразделам, обновляем их в конце
+        val keepersSeeders = HashSet<Pair<Int, String>>() // номер темы и ник хранителя
+        val appendKeepersSeeders = {
+            TorrentRepository.appendKeepersSeeders(keepersSeeders)
+            keepersSeeders.clear()
+        }
+        TorrentRepository.createTempKeepersSeeders()
         for (subsectionEntry in ConfigRepository.subsections) {
             val subsection = subsectionEntry.id
             if (!TorrentRepository.shouldUpdate(subsection)) {
@@ -85,11 +96,20 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
             }
             // TODO: 21.12.2022 переделать косяки с петлёй
             setCurrentText("Обновление подраздела $subsection")
+            val fullUpdateTopics = HashSet<FullUpdateTopic>()
+            val seedsUpdateTopics = HashSet<SeedsUpdateTopic>()
+            val topicsToQuery = HashMap<Int, List<Any>>()
+
+            val requestTorrentTopics = {
+                requestTorrentTopicsData(topicsToQuery, fullUpdateTopics)
+                incrementCurrentProgress(topicsToQuery.size)
+                topicsToQuery.clear()
+            }
+
             try {
                 // запрашиваем инфу о раздачах в подразделе с сервера
-                run block@ {
-
-                }
+                // даты регистрации с клиента
+                val existingTopicsDates = TorrentRepository.getTopicsRegistrationDate(subsection)
                 if (cancelTaskIfRequested {})
                     return
                 val forumTorrents = responseOrThrow(
@@ -97,17 +117,10 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                     "не получена информация о раздачах"
                 ).result
                 setCurrentProgress(0, forumTorrents.size)
-                // даты регистрации с клиента
-                val existingTopicsDates =
-                    TorrentRepository.getTopicsRegistrationDate(subsection)
-                val fullUpdateTopics = HashSet<FullUpdateTopic>()
-                val seedsUpdateTopics = HashSet<SeedsUpdateTopic>()
-                val topicsToQuery = HashMap<Int, List<Any>>()
-                val keepersSeeders = HashSet<Pair<Int, String>>() // номер темы и ник хранителя
-                val keepersReports = ArrayList<KeeperReportItem>()
+
                 var processedForumTorrents = 0
-                TorrentRepository.createTempKeepersSeeders()
                 for (forumTorrent in forumTorrents) {
+                    // основной блок обработки
                     processedForumTorrents++
                     if (forumTorrent.value[0] !in torrentStatus)
                         continue
@@ -117,11 +130,12 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                                 continue
                             if (keepersMap.containsKey(keeperId))
                                 keepersSeeders.add(forumTorrent.key to keepersMap[keeperId]!!)
+
+                            // добавление сидов-хранителей по размеру пачки
+                            if (keepersSeeders.size == packSize) {
+                                appendKeepersSeeders()
+                            }
                         }
-                    }
-                    if (keepersSeeders.size > packSize || processedForumTorrents == forumTorrents.size) {
-                        TorrentRepository.appendKeepersSeeders(keepersSeeders)
-                        keepersSeeders.clear()
                     }
                     val inDb = forumTorrent.key in existingTopicsDates.keys
                     val needToQuery =
@@ -130,6 +144,8 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                         // нужно запросить инфу о раздаче
                         // добавляем тему в очередь
                         topicsToQuery.put(forumTorrent.key, forumTorrent.value)
+
+                        // запрос и добавление тем на полное обновление по лимитам
                         if (topicsToQuery.size == limit) {
                             if (cancelTaskIfRequested {
                                     // добавим то, что уже обновили
@@ -139,9 +155,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                                     TorrentRepository.commitKeepersSeeders(false)
                                 })
                                 return
-                            requestTorrentTopicsData(topicsToQuery, fullUpdateTopics)
-                            incrementCurrentProgress(limit)
-                            topicsToQuery.clear()
+                            requestTorrentTopics()
                         }
                     } else {
                         // просто обновим сиды
@@ -155,36 +169,58 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                         )
                         incrementCurrentProgress()
                     }
+
                 }
-                if (topicsToQuery.isNotEmpty()) {
-                    if (cancelTaskIfRequested {
-                            // добавим то, что уже обновили
-                            TorrentRepository.appendSeedsUpdatedTopics(seedsUpdateTopics)
-                            TorrentRepository.appendFullUpdateTopics(fullUpdateTopics)
-                            TorrentRepository.commitTopics(subsection, false)
-                            TorrentRepository.commitKeepersSeeders(false)
-                        })
-                        return
-                    requestTorrentTopicsData(topicsToQuery, fullUpdateTopics)
-                    incrementCurrentProgress(topicsToQuery.size)
-                    topicsToQuery.clear()
-                }
+                if (keepersSeeders.isNotEmpty())
+                    appendKeepersSeeders()
+                if (topicsToQuery.isNotEmpty())
+                    requestTorrentTopics()
+
                 TorrentRepository.appendSeedsUpdatedTopics(seedsUpdateTopics)
                 TorrentRepository.appendFullUpdateTopics(fullUpdateTopics)
                 TorrentRepository.commitTopics(subsection, true)
-                TorrentRepository.commitKeepersSeeders(true)
 
-                // получаем отчёты хранителей
-                if (!ForumSession.hasSession()) {
-                    throw Exception("Вы не авторизованы на форуме. Авторизуйтесь в настройках")
-                }
-                val searchResponse = forumRetrofit.searchReportsTopic(subsectionEntry.title).execute()
-                if (ForumSession.needAuth(searchResponse)) {
-                    throw Exception("Сессия устарела. Вам нужно заново авторизоваться в настройках")
-                }
+                LogUtils.i("Обновление подраздела $subsection успешно завершено")
+            } catch (e: Exception) {
+                LogUtils.w("Не удалось обновить подраздел ${subsection}: " + e.localizedMessage)
+                showNonCriticalError()
+            } finally {
+                incrementFullProgress()
+            }
+        }
+        if (keepersSeeders.isNotEmpty())
+            appendKeepersSeeders()
+        TorrentRepository.commitKeepersSeeders(true)
+    }
+
+    // TODO: 21.12.2022 расставить точки отмены операции и обновлять прогресс
+    // TODO: 21.12.2022 ники хранителей двоятся
+    fun updateKeepersReports() {
+        val keepersReports = ArrayList<KeeperReportItem>()
+        val appendKeepers = {
+            TorrentRepository.appendKeepers(keepersReports)
+            keepersReports.clear()
+        }
+        TorrentRepository.createTempKeepers()
+        // получаем отчёты хранителей
+        for (subsectionEntry in ConfigRepository.subsections) {
+            val subsection = subsectionEntry.id
+            // ошибки авторизации считаем критическими
+            if (!ForumSession.hasSession()) {
+                throw Exception("Вы не авторизованы на форуме. Авторизуйтесь в настройках")
+            }
+            val searchResponse = forumRetrofit.searchReportsTopic(subsectionEntry.title).execute()
+            if (ForumSession.needAuth(searchResponse)) {
+                throw Exception("Сессия устарела. Вам нужно заново авторизоваться в настройках")
+            }
+            try {
                 val reportsTopicsElements = Jsoup.parse(searchResponse.body()!!).select("a[href].topictitle")
                 if (reportsTopicsElements.isEmpty()) {
                     throw Exception("Не найдены отчёты для подраздела $subsection")
+                }
+                if (reportsTopicsElements.size > 1){
+                    showNonCriticalAndLog("Для подраздела ${subsectionEntry.title} получено больше одной темы с отчётом." +
+                            " Этого не должно происходить, заведите issue")
                 }
                 for (element in reportsTopicsElements) {
                     var reportsTopicLink = element.attr("href") ?: continue
@@ -203,7 +239,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                             val updateDateString = try {
                                 // пробуем получить дату редактирования
                                 val postedSinceText = postElement.selectFirst("span.posted_since")?.text()
-                                postedSinceText?.substring(postedSinceText.indexOf("ред. ") + 5)
+                                postedSinceText?.substring(postedSinceText.indexOf("ред. ") + 5,postedSinceText.length-1)
                                     ?: throw NullPointerException()
                             } catch (e: Exception) {
                                 // нет даты редактирования
@@ -224,12 +260,12 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                             for (topicLinkElement in topicsLinksElements) {
                                 var topicId: Int? = null
                                 var completed: Boolean? = null
-                                if (topicLinkElement.text().matches(Regex("viewtopic.php\\?t=\\d+$"))) {
-                                    topicId = topicLinkElement.text().replace(Regex(".*?(\\d*)$"), "\$1").toIntOrNull()
+                                if (topicLinkElement.attr("href").matches(Regex("viewtopic.php\\?t=\\d+$"))) {
+                                    topicId = topicLinkElement.attr("href").replace(Regex(".*?(\\d*)$"), "\$1").toIntOrNull()
                                     completed = true
-                                } else if (topicLinkElement.text().matches(Regex("viewtopic.php\\?t=\\d+#dl\$"))) {
+                                } else if (topicLinkElement.attr("href").matches(Regex("viewtopic.php\\?t=\\d+#dl\$"))) {
                                     topicId =
-                                        topicLinkElement.text().replace(Regex(".*?(\\d*)#dl\$"), "\$1").toIntOrNull()
+                                        topicLinkElement.attr("href").replace(Regex(".*?(\\d*)#dl\$"), "\$1").toIntOrNull()
                                     completed = false
                                 }
                                 if (topicId == null || completed == null)
@@ -242,7 +278,8 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                                         completed
                                     )
                                 )
-
+                                if (keepersReports.size == packSize)
+                                    appendKeepers()
                             }
                         }
                         // TODO: 19.12.2022 что-то делаем со страницей
@@ -257,15 +294,13 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                             }
                         })
                 }
-
-                LogUtils.i("Обновление подраздела $subsection успешно завершено")
-            } catch (e: Exception) {
-                LogUtils.w("Не удалось обновить подраздел ${subsection}: " + e.localizedMessage)
-                showNonCriticalError()
-            } finally {
-                incrementFullProgress()
+            } catch (e: Exception){
+                showNonCriticalAndLog("Не удалось обновить отчёты хранителей для подраздела $subsection: ${e.localizedMessage}")
             }
         }
+        if (keepersReports.isNotEmpty())
+            appendKeepers()
+        TorrentRepository.commitKeepers(true)
     }
 
 

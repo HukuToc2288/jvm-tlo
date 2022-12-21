@@ -556,7 +556,7 @@ object TorrentRepository {
     fun createTempKeepers() {
         connection.createStatement().execute(
             "CREATE TEMPORARY TABLE KeepersNew AS" +
-                    " SELECT id,nick,posted,complete FROM KeepersSeeders" +
+                    " SELECT id,nick,posted,complete FROM Keepers" +
                     " LIMIT 0"
         )
     }
@@ -574,6 +574,7 @@ object TorrentRepository {
             insertTempStatement.setString(2, report.nick)
             insertTempStatement.setInt(3, report.posted)
             insertTempStatement.setBoolean(4, report.completed)
+            insertTempStatement.addBatch()
         }
         insertTempStatement.executeBatch()
     }
@@ -589,7 +590,7 @@ object TorrentRepository {
                         " LEFT JOIN Keepers ON temp.KeepersNew.id = Keepers.id AND temp.KeepersNew.nick = Keepers.nick" +
                         " WHERE Keepers.id IS NOT NULL)"
             )
-        connection.createStatement().execute("DROP TABLE temp.KeepersSeedersNew")
+        connection.createStatement().execute("DROP TABLE temp.KeepersNew")
     }
 
     fun appendKeepersSeeders(keepersSeeders: Set<Pair<Int, String>>) {
