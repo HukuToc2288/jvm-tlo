@@ -194,7 +194,6 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
     }
 
     // TODO: 21.12.2022 расставить точки отмены операции и обновлять прогресс
-    // TODO: 21.12.2022 ники хранителей двоятся
     fun updateKeepersReports() {
         val keepersReports = ArrayList<KeeperReportItem>()
         val appendKeepers = {
@@ -219,7 +218,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                     throw Exception("Не найдены отчёты для подраздела $subsection")
                 }
                 if (reportsTopicsElements.size > 1){
-                    showNonCriticalAndLog("Для подраздела ${subsectionEntry.title} получено больше одной темы с отчётом." +
+                    showNonCriticalAndLog("Для подраздела ${subsection} получено больше одной темы с отчётом." +
                             " Этого не должно происходить, заведите issue")
                 }
                 for (element in reportsTopicsElements) {

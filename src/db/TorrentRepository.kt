@@ -60,7 +60,9 @@ object TorrentRepository {
             "SELECT Topics.id,na,rg,se,Keepers.nick,complete,KeepersSeeders.nick, oh, nh FROM Topics" +
                     " LEFT OUTER JOIN Keepers ON Topics.id = Keepers.id" +
                     " LEFT OUTER JOIN KeepersSeeders ON Topics.id = KeepersSeeders.topic_id" +
-                    " INNER JOIN TopicsUpdated ON TopicsUpdated.nh = Topics.hs"
+                    " AND (KeepersSeeders.nick IS NULL OR Keepers.nick IS NULL OR Keepers.nick == KeepersSeeders.nick)" +
+                    " INNER JOIN TopicsUpdated ON TopicsUpdated.nh = Topics.hs"+
+                    " ORDER BY Topics.id ASC"
         val resultSet = connection.createStatement().executeQuery(query)
         return object : CachingIterator<UpdatedTorrentItem>(resultSet) {
             override fun processResult(resultSet: ResultSet): UpdatedTorrentItem {
