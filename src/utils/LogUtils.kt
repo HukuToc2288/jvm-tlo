@@ -62,6 +62,10 @@ object LogUtils {
         logListeners.add(listener)
     }
 
+    fun removeLogListener(listener: (level: Level, line: String) -> Unit){
+        logListeners.remove(listener)
+    }
+
     private fun fireLogListeners(level: Level, line: String) {
         for (listener in logListeners) {
             listener.invoke(level, line)

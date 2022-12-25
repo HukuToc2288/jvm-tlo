@@ -9,6 +9,10 @@ import java.awt.event.WindowEvent
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.JOptionPane
+import javax.swing.text.DefaultCaret
+import javax.swing.text.SimpleAttributeSet
+import javax.swing.text.StyleConstants
+import javax.swing.text.StyledEditorKit
 
 
 abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(frame, title, true) {
@@ -51,6 +55,24 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         }
     }
 
+    val logListener: (level: LogUtils.Level, line: String) -> Unit = { level, line ->
+        addLogLine(level, line)
+    }
+
+    val logArea = JTextPane().apply {
+        editorKit = StyledEditorKit()
+        isEditable = false
+        border = EmptyBorder(5, 5, 5, 5)
+        (caret as DefaultCaret).updatePolicy = DefaultCaret.ALWAYS_UPDATE
+    }
+    val logScroll = JScrollPane(
+        logArea,
+        ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+        ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
+    ).apply {
+
+    }
+
     private var result: Result? = null
     private var nonCriticalErrors = 0
 
@@ -58,12 +80,13 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         defaultCloseOperation = DO_NOTHING_ON_CLOSE
         layout = GridBagLayout()
         buildGui()
-        preferredSize = Dimension(480, 200)
+        preferredSize = Dimension(480, 300)
         size = preferredSize
         isResizable = false
         cancelButton.addActionListener(cancelListener)
         addWindowListener(windowCloseListener)
         setLocationRelativeTo(frame)
+        LogUtils.addLogListener(logListener)
     }
 
     private fun showCancellationDialog() {
@@ -112,7 +135,7 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
             onTaskCancelled()
             return true
         }
-        if (result == Result.FAILED){
+        if (result == Result.FAILED) {
             finalize.invoke()
             return true
         }
@@ -169,7 +192,7 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
     /**
      * Вызывается после любого результата задачи
      */
-    private fun onTaskFinished() {
+    protected open fun onTaskFinished() {
         defaultCloseOperation = DISPOSE_ON_CLOSE
         cancelButton.text = "Закрыть"
         cancelButton.removeActionListener(cancelListener)
@@ -206,7 +229,6 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         constraints.anchor = GridBagConstraints.CENTER
         constraints.gridwidth = 2
         constraints.weightx = 0.5
-        constraints.weighty = 0.5
         add(operationBigTitle, constraints)
 
         constraints.gridy = 1
@@ -220,7 +242,7 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         add(fullProgress, constraints)
 
         constraints.gridwidth = 1
-        constraints.gridy = 5
+        constraints.gridy = 20
         constraints.fill = GridBagConstraints.NONE
         constraints.anchor = GridBagConstraints.EAST
         add(statusText, constraints)
@@ -228,6 +250,13 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
         constraints.gridx = 1
         //constraints.weightx = 0.0
         add(cancelButton, constraints)
+
+        constraints.gridx = 0
+        constraints.gridy = 10
+        constraints.gridwidth = 2
+        constraints.weighty = 1.0
+        constraints.fill = GridBagConstraints.BOTH
+        add(logScroll, constraints)
     }
 
     fun setCurrentText(text: String) {
@@ -268,6 +297,21 @@ abstract class OperationDialog(frame: Frame? = null, title: String) : JDialog(fr
 
     fun incrementFullProgress(value: Int = 1) {
         fullProgress.value += value
+    }
+
+    private fun addLogLine(level: LogUtils.Level, line: String) {
+        val textAttrs = SimpleAttributeSet()
+        when (level) {
+            LogUtils.Level.INFO -> {}
+            LogUtils.Level.WARN -> StyleConstants.setForeground(textAttrs, Color.YELLOW)
+            LogUtils.Level.ERROR -> StyleConstants.setForeground(textAttrs, Color.RED)
+        }
+        logArea.styledDocument.insertString(logArea.styledDocument.length, "$line\n", textAttrs)
+    }
+
+    override fun dispose() {
+        LogUtils.removeLogListener(logListener)
+        super.dispose()
     }
 
     enum class Result {
