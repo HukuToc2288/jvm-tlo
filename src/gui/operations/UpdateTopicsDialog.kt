@@ -11,6 +11,7 @@ import entities.torrentclient.TorrentClientTorrent
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import retrofit2.Call
+import retrofit2.Response
 import utils.ConfigRepository
 import utils.LogUtils
 import utils.pluralForum
@@ -204,22 +205,29 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
         // получаем отчёты хранителей
         for (subsectionEntry in ConfigRepository.subsections) {
             val subsection = subsectionEntry.id
-            // ошибки авторизации считаем критическими
-            if (!ForumSession.hasSession()) {
-                throw Exception("Вы не авторизованы на форуме. Авторизуйтесь в настройках")
-            }
-            val searchResponse = forumRetrofit.searchReportsTopic(subsectionEntry.title).execute()
-            if (ForumSession.needAuth(searchResponse)) {
-                throw Exception("Сессия устарела. Вам нужно заново авторизоваться в настройках")
+            val searchResponse: Response<String>
+            try {
+                if (!ForumSession.hasSession()) {
+                    throw Exception("Вы не авторизованы на форуме. Авторизуйтесь в настройках")
+                }
+                searchResponse = forumRetrofit.searchReportsTopic(subsectionEntry.title).execute()
+                if (ForumSession.needAuth(searchResponse)) {
+                    throw Exception("Сессия устарела. Вам нужно заново авторизоваться в настройках")
+                }
+            } catch (e: Exception) {
+                showNonCriticalAndLog("Не удалось получить данные с форума: " + e.localizedMessage)
+                return
             }
             try {
                 val reportsTopicsElements = Jsoup.parse(searchResponse.body()!!).select("a[href].topictitle")
                 if (reportsTopicsElements.isEmpty()) {
                     throw Exception("Не найдены отчёты для подраздела $subsection")
                 }
-                if (reportsTopicsElements.size > 1){
-                    showNonCriticalAndLog("Для подраздела ${subsection} получено больше одной темы с отчётом." +
-                            " Этого не должно происходить, заведите issue")
+                if (reportsTopicsElements.size > 1) {
+                    showNonCriticalAndLog(
+                        "Для подраздела ${subsection} получено больше одной темы с отчётом." +
+                                " Этого не должно происходить, заведите issue"
+                    )
                 }
                 for (element in reportsTopicsElements) {
                     var reportsTopicLink = element.attr("href") ?: continue
@@ -238,7 +246,10 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                             val updateDateString = try {
                                 // пробуем получить дату редактирования
                                 val postedSinceText = postElement.selectFirst("span.posted_since")?.text()
-                                postedSinceText?.substring(postedSinceText.indexOf("ред. ") + 5,postedSinceText.length-1)
+                                postedSinceText?.substring(
+                                    postedSinceText.indexOf("ред. ") + 5,
+                                    postedSinceText.length - 1
+                                )
                                     ?: throw NullPointerException()
                             } catch (e: Exception) {
                                 // нет даты редактирования
@@ -260,11 +271,15 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                                 var topicId: Int? = null
                                 var completed: Boolean? = null
                                 if (topicLinkElement.attr("href").matches(Regex("viewtopic.php\\?t=\\d+$"))) {
-                                    topicId = topicLinkElement.attr("href").replace(Regex(".*?(\\d*)$"), "\$1").toIntOrNull()
-                                    completed = true
-                                } else if (topicLinkElement.attr("href").matches(Regex("viewtopic.php\\?t=\\d+#dl\$"))) {
                                     topicId =
-                                        topicLinkElement.attr("href").replace(Regex(".*?(\\d*)#dl\$"), "\$1").toIntOrNull()
+                                        topicLinkElement.attr("href").replace(Regex(".*?(\\d*)$"), "\$1").toIntOrNull()
+                                    completed = true
+                                } else if (topicLinkElement.attr("href")
+                                        .matches(Regex("viewtopic.php\\?t=\\d+#dl\$"))
+                                ) {
+                                    topicId =
+                                        topicLinkElement.attr("href").replace(Regex(".*?(\\d*)#dl\$"), "\$1")
+                                            .toIntOrNull()
                                     completed = false
                                 }
                                 if (topicId == null || completed == null)
@@ -293,7 +308,7 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                             }
                         })
                 }
-            } catch (e: Exception){
+            } catch (e: Exception) {
                 showNonCriticalAndLog("Не удалось обновить отчёты хранителей для подраздела $subsection: ${e.localizedMessage}")
             }
         }
