@@ -17,6 +17,7 @@ import utils.LogUtils
 import utils.pluralForum
 import java.awt.Frame
 import java.io.IOException
+import java.sql.SQLException
 import java.text.DateFormatSymbols
 import java.text.ParseException
 import java.text.SimpleDateFormat
@@ -50,12 +51,24 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 if (cancelTaskIfRequested { })
                     return@Thread
                 onTaskSuccess()
+            } catch (e: SQLException) {
+                LogUtils.e("Ошибка БД, скорее всего вам придётся перезапустить программу: " + e.localizedMessage)
+                onTaskFailed()
             } catch (e: Exception) {
                 LogUtils.e("Ошибка обновления списка раздач: " + e.localizedMessage)
                 onTaskFailed()
             }
         }
         updateTorrentsThread.start()
+    }
+
+    override fun onTaskFinished() {
+        try {
+            TorrentRepository.dropUpdateTables()
+        } catch (e: Exception) {
+            LogUtils.e("Ошибка БД, скорее всего вам придётся перезапустить программу: " + e.localizedMessage)
+        }
+        super.onTaskFinished()
     }
 
     fun updateSubsections() {
@@ -111,7 +124,9 @@ class UpdateTopicsDialog(frame: Frame?) : OperationDialog(frame, "Обновле
                 // запрашиваем инфу о раздачах в подразделе с сервера
                 // даты регистрации с клиента
                 val existingTopicsDates = TorrentRepository.getTopicsRegistrationDate(subsection)
-                if (cancelTaskIfRequested {})
+                if (cancelTaskIfRequested {
+                        TorrentRepository.commitKeepersSeeders(false)
+                    })
                     return
                 val forumTorrents = responseOrThrow(
                     keeperRetrofit.getForumTorrents(subsection),

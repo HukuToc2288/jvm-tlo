@@ -61,7 +61,7 @@ object TorrentRepository {
                     " LEFT OUTER JOIN Keepers ON Topics.id = Keepers.id" +
                     " LEFT OUTER JOIN KeepersSeeders ON Topics.id = KeepersSeeders.topic_id" +
                     " AND (KeepersSeeders.nick IS NULL OR Keepers.nick IS NULL OR Keepers.nick == KeepersSeeders.nick)" +
-                    " INNER JOIN TopicsUpdated ON TopicsUpdated.nh = Topics.hs"+
+                    " INNER JOIN TopicsUpdated ON TopicsUpdated.nh = Topics.hs" +
                     " ORDER BY Topics.id ASC"
         val resultSet = connection.createStatement().executeQuery(query)
         return object : CachingIterator<UpdatedTorrentItem>(resultSet) {
@@ -229,6 +229,18 @@ object TorrentRepository {
         connection.createStatement().execute("DROP TABLE temp.ForumsNew")
         connection.createStatement()
             .execute("INSERT INTO UpdateTime(id,ud) VALUES (8888,${(System.currentTimeMillis()).toInt()})")
+    }
+
+    fun dropUpdateTables() {
+        connection.createStatement().execute("DROP TABLE IF EXISTS TopicsUpdatedNew")
+        connection.createStatement().execute("DROP TABLE IF EXISTS KeepersNew")
+        connection.createStatement().execute("DROP TABLE IF EXISTS KeepersSeedersNew")
+        connection.createStatement().execute("DROP TABLE IF EXISTS ForumsNew")
+        connection.createStatement().execute("DROP TABLE IF EXISTS SeedsUpdateTopics")
+        connection.createStatement().execute("DROP TABLE IF EXISTS FullUpdateTopics")
+        connection.createStatement().execute("DROP TABLE IF EXISTS ClientsNew")
+        connection.createStatement().execute("DROP TABLE IF EXISTS TopicsUnregisteredNew")
+        connection.createStatement().execute("DROP TABLE IF EXISTS TopicsUntrackedNew")
     }
 
     fun appendFullUpdateTopics(topics: Set<FullUpdateTopic>) {
